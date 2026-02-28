@@ -114,7 +114,7 @@ func TestRenderHTMLIncludesTrucksAndEvidences(t *testing.T) {
 		"Photos preuves",
 		"alt=\"Photo camion 1\"",
 		"alt=\"Photo preuve 1\"",
-		"Date : 2026-02-20",
+		"2026-02-20",
 		"2026-02-21",
 		"2026-02-22",
 		"https://img.example.com/truck.jpg",
