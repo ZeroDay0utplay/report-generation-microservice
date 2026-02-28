@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.InterventionName}} - {{.InvoiceNumber}}</title>
+  <style>{{.Styles}}</style>
+</head>
+<body>
+  <main class="report-shell">
+    <section class="panel hero">
+      <header class="hero-head">
+        <div class="brand">
+          {{if .HeaderLogoURL}}
+          <img class="logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe" />
+          {{end}}
+          <div>
+            <p class="eyebrow">Rapport d'intervention</p>
+            <h1>{{.InterventionName}}</h1>
+            <p class="address">{{.Address}}</p>
+          </div>
+        </div>
+
+        <div class="invoice-meta">
+          <div class="meta-tile">
+            <span class="meta-label">Facture</span>
+            <span class="meta-value">{{.InvoiceNumber}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">Date</span>
+            <span class="meta-value">{{.Date}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">E-mail</span>
+            <span class="meta-value">{{.Email}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">Telephone</span>
+            <span class="meta-value">{{.Phone}}</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="company-strip">
+        <div class="company-card">
+          <span class="meta-label">Entreprise</span>
+          <span class="meta-value">{{.Company.Name}}</span>
+        </div>
+      </div>
+    </section>
+
+    {{if .MessageHTML}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Message</h2>
+      </div>
+      <article class="message-card">{{.MessageHTML}}</article>
+    </section>
+    {{end}}
+
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Documentation avant / apres</h2>
+        <p>{{len .Pairs}} Paire(s)</p>
+      </div>
+
+      {{range .Pairs}}
+      <article class="pair-card">
+        {{if $.IncludeDates}}{{if .Date}}<span class="pair-date-badge">{{.Date}}</span>{{end}}{{end}}
+        <div class="{{$.PairGridClass}}">
+          <div class="image-tile">
+            <div class="tile-head"><span class="pill">Avant</span></div>
+            <div class="img-wrap">
+              <img src="{{.BeforeURL}}" alt="Photo avant {{.Index}}" />
+            </div>
+          </div>
+          <div class="image-tile">
+            <div class="tile-head"><span class="pill">Apres</span></div>
+            <div class="img-wrap">
+              <img src="{{.AfterURL}}" alt="Photo apres {{.Index}}" />
+            </div>
+          </div>
+        </div>
+        {{if .Caption}}<p class="caption">{{.Caption}}</p>{{end}}
+      </article>
+      {{end}}
+    </section>
+
+    {{if .Trucks}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Photos camions</h2>
+        <p>{{len .Trucks}} Element(s)</p>
+      </div>
+      <div class="photo-grid">
+        {{range .Trucks}}
+        <article class="image-tile">
+          <div class="tile-head"><span class="pill">Camion {{.Index}}</span>{{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}</div>
+          <div class="img-wrap">
+            <img src="{{.URL}}" alt="Photo camion {{.Index}}" />
+          </div>
+        </article>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    {{if .Evidences}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Photos preuves</h2>
+        <p>{{len .Evidences}} Element(s)</p>
+      </div>
+      <div class="photo-grid">
+        {{range .Evidences}}
+        <article class="image-tile">
+          <div class="tile-head"><span class="pill">Preuve {{.Index}}</span>{{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}</div>
+          <div class="img-wrap">
+            <img src="{{.URL}}" alt="Photo preuve {{.Index}}" />
+          </div>
+        </article>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    <footer class="panel footer">
+      <div class="footer-head">
+        <h2>Couverture de services - Edition entreprise</h2>
+        <p>Bloc services et contact inspire de votre identite visuelle, transforme en version texte animee, moderne et responsive.</p>
+      </div>
+
+      <ul class="services-grid">
+        <li class="service-item"><div class="service-visual service-visual-1" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">01</span><span class="service-text">Gestionnaire de cles</span></li>
+        <li class="service-item"><div class="service-visual service-visual-2" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">02</span><span class="service-text">Nettoyage chantier</span></li>
+        <li class="service-item"><div class="service-visual service-visual-3" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">03</span><span class="service-text">Nettoyage de cantonnements</span></li>
+        <li class="service-item"><div class="service-visual service-visual-4" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">04</span><span class="service-text">Collecte des encombrants</span></li>
+        <li class="service-item"><div class="service-visual service-visual-5" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">05</span><span class="service-text">Nettoyage sous-sol et parking</span></li>
+        <li class="service-item"><div class="service-visual service-visual-6" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">06</span><span class="service-text">Gestion des bennes</span></li>
+        <li class="service-item"><div class="service-visual service-visual-7" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">07</span><span class="service-text">Prechauffage chantier</span></li>
+        <li class="service-item"><div class="service-visual service-visual-8" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">08</span><span class="service-text">Nettoyage avant-livraison</span></li>
+        <li class="service-item"><div class="service-visual service-visual-9" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">09</span><span class="service-text">Protection parties communes</span></li>
+        <li class="service-item"><div class="service-visual service-visual-10" style="background-image: url('{{$.FooterIconsURL}}');" aria-hidden="true"></div><span class="service-index">10</span><span class="service-text">Deblayage urgent</span></li>
+      </ul>
+
+      <div class="contact-band">
+        <div class="contact-left">
+          <a class="contact-pill" href="mailto:contact@ideogroupe.fr"><span class="dot"></span>contact@ideogroupe.fr</a>
+          <a class="contact-pill" href="tel:+330188247111"><span class="dot"></span>+33 01 88 24 71 11</a>
+        </div>
+
+        <div class="contact-right">
+          <span class="social-title">Reseaux</span>
+          <a class="social-pill" href="https://ideogroupe.fr/" target="_blank" rel="noopener noreferrer">WEB</a>
+          <a class="social-pill" href="https://fr.linkedin.com/company/ideogroupe" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
