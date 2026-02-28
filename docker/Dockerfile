@@ -13,6 +13,6 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=builder /out/server /app/server
 
-EXPOSE 3001
+EXPOSE 3000
 USER nonroot:nonroot
 ENTRYPOINT ["/app/server"]
