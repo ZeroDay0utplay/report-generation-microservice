@@ -94,7 +94,7 @@ func (h *HTMLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("requestId", requestID(r)),
 		slog.String("jobId", jobID),
 		slog.String("route", r.URL.Path),
-		slog.String("invoiceNumber", payload.InvoiceNumber),
+		slog.String("invoiceNumber", models.StringOrEmpty(payload.InvoiceNumber)),
 		slog.Int("pairsCount", len(payload.Pairs)),
 		slog.Int64("html_gen_ms", htmlGenMS),
 		slog.Int64("upload_ms", uploadMS),

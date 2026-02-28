@@ -68,6 +68,52 @@ func TestHTMLHandlerTooManyPairs(t *testing.T) {
 	}
 }
 
+func TestHTMLHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
+	storage := newMockStorage()
+	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/html", h.ServeHTTP)
+
+	payload := samplePayload()
+	payload.InvoiceNumber = models.StringPtr("")
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHTMLHandlerAllowsNullInvoiceNumber(t *testing.T) {
+	storage := newMockStorage()
+	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/html", h.ServeHTTP)
+
+	payload := samplePayload()
+	payload.InvoiceNumber = nil
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestHTMLHandlerSuccess(t *testing.T) {
 	storage := newMockStorage()
 	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")

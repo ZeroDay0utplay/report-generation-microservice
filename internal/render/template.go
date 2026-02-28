@@ -303,7 +303,7 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 
 	data := templateData{
 		Date:             time.Now().Format("2006-01-02"),
-		InvoiceNumber:    payload.InvoiceNumber,
+		InvoiceNumber:    models.StringOrEmpty(payload.InvoiceNumber),
 		InterventionName: payload.InterventionName,
 		Address:          payload.Address,
 		Company:          payload.Company,
