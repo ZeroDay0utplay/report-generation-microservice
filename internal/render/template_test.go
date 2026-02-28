@@ -9,7 +9,7 @@ import (
 
 func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 	payload := models.ReportRequest{
-		InvoiceNumber:    "INV-2026-0001",
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen Renovation",
 		Address:          "123 Main St",
 		Company: models.Company{
@@ -46,7 +46,7 @@ func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 
 func TestRenderHTMLEscapesUserContent(t *testing.T) {
 	payload := models.ReportRequest{
-		InvoiceNumber:    "INV-2026-0001",
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "<script>alert(1)</script>",
 		Address:          "A",
 		Company: models.Company{

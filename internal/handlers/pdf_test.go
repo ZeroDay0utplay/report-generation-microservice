@@ -60,6 +60,54 @@ func TestPDFHandlerTooManyPairs(t *testing.T) {
 	}
 }
 
+func TestPDFHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
+	storage := newMockStorage()
+	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", false)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	payload.InvoiceNumber = models.StringPtr("")
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestPDFHandlerAllowsNullInvoiceNumber(t *testing.T) {
+	storage := newMockStorage()
+	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", false)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	payload.InvoiceNumber = nil
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestPDFHandlerSuccess(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7 test content")}

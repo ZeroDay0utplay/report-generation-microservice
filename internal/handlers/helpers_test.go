@@ -69,7 +69,7 @@ func (m *mockRenderer) ConvertHTMLToPDF(_ context.Context, html string) (io.Read
 
 func samplePayload() models.ReportRequest {
 	return models.ReportRequest{
-		InvoiceNumber:    "INV-2026-0001",
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen renovation",
 		Address:          "123 Main St",
 		Company: models.Company{

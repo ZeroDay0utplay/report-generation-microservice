@@ -31,7 +31,7 @@ Required:
 
 Optional with defaults:
 
-- `PORT` (default: `3000`)
+- `PORT` (default: `3001`)
 - `MAX_PAIRS` (default: `200`)
 - `REQUEST_BODY_LIMIT_MB` (default: `2`)
 - `REQUIRE_HTTPS` (default: `true`)
@@ -61,13 +61,13 @@ docker compose up --build
 3. Test health:
 
 ```bash
-curl -s http://localhost:3000/health
+curl -s http://localhost:3001/health
 ```
 
 ### Services in `docker-compose.yml`
 
 - `gotenberg`: `gotenberg/gotenberg:8`, internal port `3000`
-- `orchestrator`: this Go service, exposed on host `:3000`
+- `orchestrator`: this Go service, exposed on host `:3001`
 
 ## API
 
@@ -148,7 +148,7 @@ JSON
 Generate HTML:
 
 ```bash
-curl -sS -X POST http://localhost:3000/v1/html \
+curl -sS -X POST http://localhost:3001/v1/html \
   -H 'Content-Type: application/json' \
   --data @/tmp/report.json
 ```
@@ -156,7 +156,7 @@ curl -sS -X POST http://localhost:3000/v1/html \
 Generate PDF:
 
 ```bash
-curl -sS -X POST http://localhost:3000/v1/pdf \
+curl -sS -X POST http://localhost:3001/v1/pdf \
   -H 'Content-Type: application/json' \
   --data @/tmp/report.json
 ```

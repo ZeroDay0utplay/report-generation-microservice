@@ -2,7 +2,7 @@ package models
 
 // ReportRequest is the shared request schema for both /v1/html and /v1/pdf.
 type ReportRequest struct {
-	InvoiceNumber    string  `json:"invoiceNumber" validate:"required,max=200"`
+	InvoiceNumber    *string `json:"invoiceNumber" validate:"omitempty,max=200"`
 	InterventionName string  `json:"interventionName" validate:"required,max=200"`
 	Address          string  `json:"address" validate:"required,max=200"`
 	Company          Company `json:"company" validate:"required"`
