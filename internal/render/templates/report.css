@@ -452,28 +452,76 @@ body {
 .service-item:nth-child(9) { --stagger: 340ms; }
 .service-item:nth-child(10) { --stagger: 380ms; }
 
-.service-visual {
-  width: 132px;
+.service-avatar {
+  width: 92px;
   height: 92px;
-  border-radius: 10px;
+  border-radius: 50%;
   border: 1px solid #d5e7f2;
-  background-repeat: no-repeat;
-  background-size: 660px 216px;
-  background-color: #f7fcff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.65);
-  margin: 0 auto 2px;
+  background: linear-gradient(145deg, rgba(58, 168, 213, 0.2), rgba(29, 108, 146, 0.95));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 10px 20px rgba(29, 108, 146, 0.25);
+  margin: 2px auto 4px;
+  position: relative;
+  transform-origin: center bottom;
+  will-change: transform, filter;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  animation: avatarFloatA 2.8s ease-in-out infinite;
 }
 
-.service-visual-1 { background-position: 0px -8px; }
-.service-visual-2 { background-position: -132px -8px; }
-.service-visual-3 { background-position: -264px -8px; }
-.service-visual-4 { background-position: -396px -8px; }
-.service-visual-5 { background-position: -528px -8px; }
-.service-visual-6 { background-position: 0px -116px; }
-.service-visual-7 { background-position: -132px -116px; }
-.service-visual-8 { background-position: -264px -116px; }
-.service-visual-9 { background-position: -396px -116px; }
-.service-visual-10 { background-position: -528px -116px; }
+.service-avatar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.42) 48%, transparent 100%);
+  transform: translateX(-130%);
+  animation: avatarShine 5.5s linear infinite;
+}
+
+.service-item:nth-child(2) .service-avatar {
+  animation: avatarFloatB 3.2s ease-in-out infinite;
+  animation-delay: 140ms;
+}
+.service-item:nth-child(3) .service-avatar {
+  animation: avatarFloatC 2.9s ease-in-out infinite;
+  animation-delay: 220ms;
+}
+.service-item:nth-child(4) .service-avatar {
+  animation: avatarFloatA 3.1s ease-in-out infinite;
+  animation-delay: 300ms;
+}
+.service-item:nth-child(5) .service-avatar {
+  animation: avatarFloatB 2.7s ease-in-out infinite;
+  animation-delay: 380ms;
+}
+.service-item:nth-child(6) .service-avatar {
+  animation: avatarFloatC 3.3s ease-in-out infinite;
+  animation-delay: 460ms;
+}
+.service-item:nth-child(7) .service-avatar {
+  animation: avatarFloatA 2.85s ease-in-out infinite;
+  animation-delay: 540ms;
+}
+.service-item:nth-child(8) .service-avatar {
+  animation: avatarFloatB 3.15s ease-in-out infinite;
+  animation-delay: 620ms;
+}
+.service-item:nth-child(9) .service-avatar {
+  animation: avatarFloatC 2.95s ease-in-out infinite;
+  animation-delay: 700ms;
+}
+.service-item:nth-child(10) .service-avatar {
+  animation: avatarFloatA 3.25s ease-in-out infinite;
+  animation-delay: 780ms;
+}
 
 .service-index {
   width: fit-content;
@@ -610,6 +658,29 @@ body {
   0% { transform: translateX(-130%); }
   15% { transform: translateX(140%); }
   100% { transform: translateX(140%); }
+}
+
+@keyframes avatarShine {
+  0% { transform: translateX(-130%); }
+  18% { transform: translateX(130%); }
+  100% { transform: translateX(130%); }
+}
+
+@keyframes avatarFloatA {
+  0%, 100% { transform: translateY(0) scale(1); filter: saturate(1); }
+  50% { transform: translateY(-4px) scale(1.025); filter: saturate(1.08); }
+}
+
+@keyframes avatarFloatB {
+  0%, 100% { transform: translateY(0) rotate(0deg); filter: brightness(1); }
+  25% { transform: translateY(-2px) rotate(-0.8deg); }
+  75% { transform: translateY(-4px) rotate(0.8deg); filter: brightness(1.06); }
+}
+
+@keyframes avatarFloatC {
+  0%, 100% { transform: translateY(0) scale(1); filter: contrast(1); }
+  40% { transform: translateY(-3px) scale(1.018); }
+  70% { transform: translateY(-5px) scale(1.03); filter: contrast(1.06); }
 }
 
 @media (max-width: 980px) {
