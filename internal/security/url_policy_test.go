@@ -40,10 +40,10 @@ func TestURLPolicyRejectsIPLiteral(t *testing.T) {
 }
 
 func TestURLPolicyValidPayload(t *testing.T) {
-	policy := NewURLPolicy(true, []string{"images.example.com", "assets.example.com", "www.example.com"})
+	policy := NewURLPolicy(true, []string{"images.example.com", "cdn.example.com", "www.example.com"})
 	payload := validPayload()
 	payload.Company.Website = "https://www.example.com"
-	payload.Company.LogoURL = "https://assets.example.com/logo.png"
+	payload.Company.LogoURL = "https://cdn.example.com/logo.png"
 	payload.Trucks = []models.Photo{{URL: "https://images.example.com/truck.jpg"}}
 	payload.Evidences = []models.Photo{{URL: "https://images.example.com/evidence.jpg"}}
 

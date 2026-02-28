@@ -3,12 +3,8 @@ package render
 import (
 	"bytes"
 	"embed"
-	"encoding/base64"
 	"fmt"
 	"html/template"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +36,6 @@ type templateData struct {
 	InterventionName string
 	Address          string
 	HeaderLogoURL    string
-	FooterIconsURL   string
 	MessageHTML      template.HTML
 	IncludeDates     bool
 	PairGridClass    string
@@ -57,14 +52,11 @@ var (
 	tpl          *template.Template
 	cssContent   template.CSS
 	tplErr       error
-
-	footerOnce    sync.Once
-	footerDataURI string
 )
 
 const hostedLogoURL = "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"
 
-func loadTemplateAssets() (*template.Template, template.CSS, error) {
+func loadTemplateBundle() (*template.Template, template.CSS, error) {
 	templateOnce.Do(func() {
 		htmlBytes, err := reportTemplateFS.ReadFile("templates/report.html")
 		if err != nil {
@@ -83,38 +75,8 @@ func loadTemplateAssets() (*template.Template, template.CSS, error) {
 	return tpl, cssContent, tplErr
 }
 
-func resolveImageDataURI(fileName string, once *sync.Once, cache *string) string {
-	once.Do(func() {
-		for _, p := range assetCandidates(fileName) {
-			b, err := os.ReadFile(p)
-			if err != nil {
-				continue
-			}
-			*cache = "data:image/png;base64," + base64.StdEncoding.EncodeToString(b)
-			break
-		}
-	})
-	if *cache == "" {
-		return filepath.ToSlash(filepath.Join("assets", fileName))
-	}
-	return *cache
-}
-
-func assetCandidates(fileName string) []string {
-	candidates := []string{filepath.Join("assets", fileName)}
-	if _, thisFile, _, ok := runtime.Caller(0); ok {
-		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-		candidates = append([]string{filepath.Join(repoRoot, "assets", fileName)}, candidates...)
-	}
-	return candidates
-}
-
 func resolveLogoURL() string {
 	return hostedLogoURL
-}
-
-func resolveFooterIconsDataURI() string {
-	return resolveImageDataURI("footer_icons.png", &footerOnce, &footerDataURI)
 }
 
 func effectiveIncludeDates(payload models.ReportRequest) bool {
@@ -144,7 +106,7 @@ func normalizeMessageHTML(message string) template.HTML {
 }
 
 func RenderHTML(payload models.ReportRequest) (string, error) {
-	reportTpl, styles, err := loadTemplateAssets()
+	reportTpl, styles, err := loadTemplateBundle()
 	if err != nil {
 		return "", err
 	}
@@ -194,7 +156,6 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 		InterventionName: payload.InterventionName,
 		Address:          payload.Address,
 		HeaderLogoURL:    resolveLogoURL(),
-		FooterIconsURL:   resolveFooterIconsDataURI(),
 		MessageHTML:      normalizeMessageHTML(payload.Message),
 		IncludeDates:     effectiveIncludeDates(payload),
 		PairGridClass:    pairGridClass(payload.PhotoLayout),
