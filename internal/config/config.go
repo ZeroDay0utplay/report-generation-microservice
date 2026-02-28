@@ -32,7 +32,7 @@ func Load() (Config, error) {
 		RequestBodyLimitMB: getEnvInt("REQUEST_BODY_LIMIT_MB", 2),
 		RequireHTTPS:       getEnvBool("REQUIRE_HTTPS", true),
 		ImageHostAllowlist: parseCSV(getEnv("IMAGE_HOST_ALLOWLIST", "")),
-		GotenbergURL:       strings.TrimRight(getEnv("GOTENBERG_URL", "http://gotenberg:3000"), "/"),
+		GotenbergURL:       strings.TrimRight(getEnv("GOTENBERG_URL", "http://gotenberg:3001"), "/"),
 		UploadHTMLOnPDF:    getEnvBool("UPLOAD_HTML_ON_PDF", false),
 		B2Endpoint:         strings.TrimRight(os.Getenv("B2_ENDPOINT"), "/"),
 		B2Region:           os.Getenv("B2_REGION"),

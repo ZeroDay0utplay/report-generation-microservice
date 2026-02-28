@@ -72,6 +72,9 @@ func samplePayload() models.ReportRequest {
 		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen renovation",
 		Address:          "123 Main St",
+		Message:          "<p><strong>Bonjour</strong> chantier.</p>",
+		IncludeDates:     true,
+		PhotoLayout:      "one_by_row",
 		Company: models.Company{
 			Name:    "ACME Services",
 			Contact: "+216 00 000 000",
@@ -81,7 +84,20 @@ func samplePayload() models.ReportRequest {
 			{
 				BeforeURL: "https://img.example.com/before.jpg",
 				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-02-20",
 				Caption:   "Angle 1",
+			},
+		},
+		Trucks: []models.Photo{
+			{
+				URL:  "https://img.example.com/truck.jpg",
+				Date: "2026-02-21",
+			},
+		},
+		Evidences: []models.Photo{
+			{
+				URL:  "https://img.example.com/evidence.jpg",
+				Date: "2026-02-22",
 			},
 		},
 	}

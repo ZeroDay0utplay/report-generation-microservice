@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -145,5 +146,9 @@ func TestHTMLHandlerSuccess(t *testing.T) {
 	}
 	if _, ok := storage.htmlObjects[resp.HTMLKey]; !ok {
 		t.Fatalf("expected html object %q to be uploaded", resp.HTMLKey)
+	}
+	html := storage.htmlObjects[resp.HTMLKey]
+	if !strings.Contains(html, "Photos camions") || !strings.Contains(html, "Photos preuves") {
+		t.Fatalf("expected uploaded HTML to include trucks and evidences sections")
 	}
 }

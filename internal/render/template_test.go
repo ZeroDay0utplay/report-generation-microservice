@@ -12,6 +12,7 @@ func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen Renovation",
 		Address:          "123 Main St",
+		PhotoLayout:      "one_by_row",
 		Company: models.Company{
 			Name:    "ACME Services",
 			Contact: "+216 00 000 000",
@@ -20,6 +21,7 @@ func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 			{
 				BeforeURL: "https://img.example.com/before.jpg",
 				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-02-20",
 				Caption:   "Angle 1",
 			},
 		},
@@ -31,10 +33,12 @@ func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 	}
 
 	checks := []string{
-		"Before / After",
-		"@page { size: A4; margin: 14mm 12mm; }",
-		"alt=\"Before image 1\"",
-		"alt=\"After image 1\"",
+		"Documentation avant / apres",
+		"@page { size: A4; margin: 12mm; }",
+		"alt=\"Photo avant 1\"",
+		"alt=\"Photo apres 1\"",
+		"pair-grid pair-grid-one",
+		"grid-template-columns: 1fr;",
 		"Kitchen Renovation",
 	}
 	for _, c := range checks {
@@ -72,5 +76,144 @@ func TestRenderHTMLEscapesUserContent(t *testing.T) {
 	}
 	if strings.Contains(html, "<b>ACME</b>") {
 		t.Fatal("expected HTML tags in company name to be escaped")
+	}
+}
+
+func TestRenderHTMLIncludesTrucksAndEvidences(t *testing.T) {
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
+		InterventionName: "Kitchen Renovation",
+		Address:          "123 Main St",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before.jpg",
+				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-02-20",
+			},
+		},
+		Trucks: []models.Photo{
+			{URL: "https://img.example.com/truck.jpg", Date: "2026-02-21"},
+		},
+		Evidences: []models.Photo{
+			{URL: "https://img.example.com/evidence.jpg", Date: "2026-02-22"},
+		},
+		IncludeDates: true,
+	}
+
+	html, err := RenderHTML(payload)
+	if err != nil {
+		t.Fatalf("RenderHTML failed: %v", err)
+	}
+
+	checks := []string{
+		"Photos camions",
+		"Photos preuves",
+		"alt=\"Photo camion 1\"",
+		"alt=\"Photo preuve 1\"",
+		"Date : 2026-02-20",
+		"2026-02-21",
+		"2026-02-22",
+		"https://img.example.com/truck.jpg",
+		"https://img.example.com/evidence.jpg",
+	}
+	for _, c := range checks {
+		if !strings.Contains(html, c) {
+			t.Fatalf("expected rendered HTML to contain %q", c)
+		}
+	}
+}
+
+func TestRenderHTMLRendersMessageHTML(t *testing.T) {
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
+		InterventionName: "Kitchen Renovation",
+		Address:          "123 Main St",
+		Message:          "<p><strong>Important</strong> chantier termine.</p>",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before.jpg",
+				AfterURL:  "https://img.example.com/after.jpg",
+			},
+		},
+	}
+
+	html, err := RenderHTML(payload)
+	if err != nil {
+		t.Fatalf("RenderHTML failed: %v", err)
+	}
+
+	if !strings.Contains(html, "<strong>Important</strong>") {
+		t.Fatal("expected message HTML tags to be rendered")
+	}
+}
+
+func TestRenderHTMLHidesDatesWhenIncludeDatesDisabled(t *testing.T) {
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
+		InterventionName: "Kitchen Renovation",
+		Address:          "123 Main St",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before.jpg",
+				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-02-20",
+			},
+		},
+		Trucks: []models.Photo{
+			{URL: "https://img.example.com/truck.jpg", Date: "2026-02-21"},
+		},
+		IncludeDates: false,
+	}
+
+	html, err := RenderHTML(payload)
+	if err != nil {
+		t.Fatalf("RenderHTML failed: %v", err)
+	}
+
+	if strings.Contains(html, "2026-02-20") || strings.Contains(html, "2026-02-21") {
+		t.Fatal("expected photo dates to be hidden when includeDates is false")
+	}
+}
+
+func TestRenderHTMLIncludeDateAliasOverridesIncludeDates(t *testing.T) {
+	includeDate := false
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
+		InterventionName: "Kitchen Renovation",
+		Address:          "123 Main St",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before.jpg",
+				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-02-20",
+			},
+		},
+		IncludeDates: true,
+		IncludeDate:  &includeDate,
+	}
+
+	html, err := RenderHTML(payload)
+	if err != nil {
+		t.Fatalf("RenderHTML failed: %v", err)
+	}
+
+	if strings.Contains(html, "2026-02-20") {
+		t.Fatal("expected includeDate alias to override includeDates")
 	}
 }

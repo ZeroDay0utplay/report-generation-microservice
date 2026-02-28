@@ -36,7 +36,7 @@ Optional with defaults:
 - `REQUEST_BODY_LIMIT_MB` (default: `2`)
 - `REQUIRE_HTTPS` (default: `true`)
 - `IMAGE_HOST_ALLOWLIST` (optional CSV)
-- `GOTENBERG_URL` (default: `http://gotenberg:3000`)
+- `GOTENBERG_URL` (default: `http://gotenberg:3001`)
 - `UPLOAD_HTML_ON_PDF` (default: `false`)
 - `OUTPUT_PREFIX` (default: `docs`)
 - `LOG_LEVEL` (default: `info`)
@@ -66,7 +66,7 @@ curl -s http://localhost:3001/health
 
 ### Services in `docker-compose.yml`
 
-- `gotenberg`: `gotenberg/gotenberg:8`, internal port `3000`
+- `gotenberg`: `gotenberg/gotenberg:8`, internal port `3001`
 - `orchestrator`: this Go service, exposed on host `:3001`
 
 ## API
@@ -134,11 +134,27 @@ cat > /tmp/report.json <<'JSON'
     "website": "https://acme.tn",
     "logoUrl": "https://cdn.example.com/logo.png"
   },
+  "message": "<p><strong>Rapport</strong> valide.</p>",
+  "includeDates": true,
+  "photoLayout": "one_by_row",
   "pairs": [
     {
       "beforeUrl": "https://cdn.example.com/before1.jpg",
       "afterUrl": "https://cdn.example.com/after1.jpg",
+      "date": "2026-02-20",
       "caption": "Angle 1"
+    }
+  ],
+  "trucks": [
+    {
+      "url": "https://cdn.example.com/truck1.jpg",
+      "date": "2026-02-21"
+    }
+  ],
+  "evidences": [
+    {
+      "url": "https://cdn.example.com/evidence1.jpg",
+      "date": "2026-02-22"
     }
   ]
 }
@@ -167,7 +183,7 @@ Deploy two services:
 
 1. **Gotenberg service**
 - Create a Render Web Service using image: `gotenberg/gotenberg:8`
-- Internal port: `3000`
+- Internal port: `3001`
 - Keep it private/internal if possible
 
 2. **Orchestrator service** (this repo)
