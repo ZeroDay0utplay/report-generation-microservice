@@ -1,0 +1,20 @@
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    expose:
+      - "3001"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - gotenberg
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      GOTENBERG_URL: http://gotenberg:3002
