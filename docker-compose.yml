@@ -3,7 +3,7 @@ services:
     image: gotenberg/gotenberg:8
     restart: unless-stopped
     expose:
-      - "3000"
+      - "3001"
 
   orchestrator:
     build:
@@ -17,4 +17,4 @@ services:
     env_file:
       - .env
     environment:
-      GOTENBERG_URL: http://gotenberg:3000
+      GOTENBERG_URL: http://gotenberg:3001

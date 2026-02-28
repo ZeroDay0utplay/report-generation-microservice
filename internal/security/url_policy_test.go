@@ -44,10 +44,23 @@ func TestURLPolicyValidPayload(t *testing.T) {
 	payload := validPayload()
 	payload.Company.Website = "https://www.example.com"
 	payload.Company.LogoURL = "https://assets.example.com/logo.png"
+	payload.Trucks = []models.Photo{{URL: "https://images.example.com/truck.jpg"}}
+	payload.Evidences = []models.Photo{{URL: "https://images.example.com/evidence.jpg"}}
 
 	err := policy.ValidatePayload(payload)
 	if err != nil {
 		t.Fatalf("expected valid payload, got error: %v", err)
+	}
+}
+
+func TestURLPolicyRejectsBlockedTruckHost(t *testing.T) {
+	policy := NewURLPolicy(true, nil)
+	payload := validPayload()
+	payload.Trucks = []models.Photo{{URL: "https://localhost/truck.jpg"}}
+
+	err := policy.ValidatePayload(payload)
+	if err == nil {
+		t.Fatal("expected rejection for blocked truck URL host")
 	}
 }
 
@@ -65,6 +78,12 @@ func validPayload() models.ReportRequest {
 				BeforeURL: "https://images.example.com/before.jpg",
 				AfterURL:  "https://images.example.com/after.jpg",
 			},
+		},
+		Trucks: []models.Photo{
+			{URL: "https://images.example.com/truck.jpg"},
+		},
+		Evidences: []models.Photo{
+			{URL: "https://images.example.com/evidence.jpg"},
 		},
 	}
 }

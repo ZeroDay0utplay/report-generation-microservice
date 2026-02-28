@@ -6,7 +6,13 @@ type ReportRequest struct {
 	InterventionName string  `json:"interventionName" validate:"required,max=200"`
 	Address          string  `json:"address" validate:"required,max=200"`
 	Company          Company `json:"company" validate:"required"`
+	Message          string  `json:"message,omitempty" validate:"omitempty,max=50000"`
+	IncludeDates     bool    `json:"includeDates,omitempty"`
+	IncludeDate      *bool   `json:"includeDate,omitempty"`
+	PhotoLayout      string  `json:"photoLayout,omitempty" validate:"omitempty,max=50"`
 	Pairs            []Pair  `json:"pairs" validate:"required,min=1,dive"`
+	Trucks           []Photo `json:"trucks,omitempty" validate:"omitempty,dive"`
+	Evidences        []Photo `json:"evidences,omitempty" validate:"omitempty,dive"`
 }
 
 type Company struct {
@@ -21,7 +27,13 @@ type Company struct {
 type Pair struct {
 	BeforeURL string `json:"beforeUrl" validate:"required,url,max=2000"`
 	AfterURL  string `json:"afterUrl" validate:"required,url,max=2000"`
+	Date      string `json:"date,omitempty" validate:"omitempty,datetime=2006-01-02"`
 	Caption   string `json:"caption,omitempty" validate:"omitempty,max=300"`
+}
+
+type Photo struct {
+	URL  string `json:"url" validate:"required,url,max=2000"`
+	Date string `json:"date,omitempty" validate:"omitempty,datetime=2006-01-02"`
 }
 
 type HTMLResponse struct {

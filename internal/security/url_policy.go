@@ -72,6 +72,20 @@ func (p *URLPolicy) ValidatePayload(payload models.ReportRequest) error {
 		}
 	}
 
+	for i, truck := range payload.Trucks {
+		field := fmt.Sprintf("trucks[%d].url", i)
+		if err := p.validateURL(field, truck.URL); err != nil {
+			violations = append(violations, Violation{Field: field, Message: err.Error()})
+		}
+	}
+
+	for i, evidence := range payload.Evidences {
+		field := fmt.Sprintf("evidences[%d].url", i)
+		if err := p.validateURL(field, evidence.URL); err != nil {
+			violations = append(violations, Violation{Field: field, Message: err.Error()})
+		}
+	}
+
 	if len(violations) > 0 {
 		return &ValidationError{Violations: violations}
 	}
