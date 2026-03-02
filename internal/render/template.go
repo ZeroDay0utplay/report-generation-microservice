@@ -5,9 +5,9 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"pdf-html-service/internal/models"
 )
@@ -86,6 +86,36 @@ func effectiveIncludeDates(payload models.ReportRequest) bool {
 	return payload.IncludeDates
 }
 
+func sortedUniquePayloadDates(payload models.ReportRequest) string {
+	dateSet := make(map[string]struct{})
+	for _, pair := range payload.Pairs {
+		if pair.Date != "" {
+			dateSet[pair.Date] = struct{}{}
+		}
+	}
+	for _, truck := range payload.Trucks {
+		if truck.Date != "" {
+			dateSet[truck.Date] = struct{}{}
+		}
+	}
+	for _, evidence := range payload.Evidences {
+		if evidence.Date != "" {
+			dateSet[evidence.Date] = struct{}{}
+		}
+	}
+	if len(dateSet) == 0 {
+		return "-"
+	}
+
+	dates := make([]string, 0, len(dateSet))
+	for date := range dateSet {
+		dates = append(dates, date)
+	}
+	sort.Strings(dates)
+
+	return strings.Join(dates, ", ")
+}
+
 func normalizePhotoLayout(layout string) string {
 	normalized := strings.ToLower(strings.TrimSpace(layout))
 	normalized = strings.NewReplacer("-", "", "_", "", " ", "").Replace(normalized)
@@ -151,7 +181,7 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 
 	data := templateData{
 		Styles:           styles,
-		Date:             time.Now().Format("2006-01-02"),
+		Date:             sortedUniquePayloadDates(payload),
 		InvoiceNumber:    models.StringOrEmpty(payload.InvoiceNumber),
 		InterventionName: payload.InterventionName,
 		Address:          payload.Address,
