@@ -182,8 +182,9 @@ func TestRenderHTMLHidesDatesWhenIncludeDatesDisabled(t *testing.T) {
 		t.Fatalf("RenderHTML failed: %v", err)
 	}
 
-	if strings.Contains(html, "2026-02-20") || strings.Contains(html, "2026-02-21") {
-		t.Fatal("expected photo dates to be hidden when includeDates is false")
+	if strings.Contains(html, "class=\"pair-date-badge\">2026-02-20</span>") ||
+		strings.Contains(html, "class=\"photo-date\">2026-02-21</span>") {
+		t.Fatal("expected per-photo date badges to be hidden when includeDates is false")
 	}
 }
 
@@ -213,7 +214,46 @@ func TestRenderHTMLIncludeDateAliasOverridesIncludeDates(t *testing.T) {
 		t.Fatalf("RenderHTML failed: %v", err)
 	}
 
-	if strings.Contains(html, "2026-02-20") {
-		t.Fatal("expected includeDate alias to override includeDates")
+	if strings.Contains(html, "class=\"pair-date-badge\">2026-02-20</span>") {
+		t.Fatal("expected includeDate alias to hide per-photo date badges")
+	}
+}
+
+func TestRenderHTMLHeaderDatesAreSortedUniqueAndAggregated(t *testing.T) {
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
+		InterventionName: "Kitchen Renovation",
+		Address:          "123 Main St",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before-1.jpg",
+				AfterURL:  "https://img.example.com/after-1.jpg",
+				Date:      "2026-02-05",
+			},
+			{
+				BeforeURL: "https://img.example.com/before-2.jpg",
+				AfterURL:  "https://img.example.com/after-2.jpg",
+				Date:      "2026-02-01",
+			},
+		},
+		Trucks: []models.Photo{
+			{URL: "https://img.example.com/truck.jpg", Date: "2026-02-05"},
+		},
+		Evidences: []models.Photo{
+			{URL: "https://img.example.com/evidence.jpg", Date: "2026-02-08"},
+		},
+	}
+
+	html, err := RenderHTML(payload)
+	if err != nil {
+		t.Fatalf("RenderHTML failed: %v", err)
+	}
+
+	if !strings.Contains(html, "2026-02-01, 2026-02-05, 2026-02-08") {
+		t.Fatal("expected header dates to be sorted, unique, and aggregated from image payload")
 	}
 }
