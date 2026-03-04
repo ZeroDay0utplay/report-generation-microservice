@@ -1,15 +1,26 @@
+networks:
+  internal:
+    driver: bridge
+
 services:
   gotenberg:
     image: gotenberg/gotenberg:8
     restart: unless-stopped
-    expose:
-      - "4000"
+    networks:
+      - internal
+    command:
+      - gotenberg
+      - --api-port=8090
+    ports:
+      - "8090:8090"
 
   orchestrator:
     build:
       context: .
       dockerfile: docker/Dockerfile
     restart: unless-stopped
+    networks:
+      - internal
     depends_on:
       - gotenberg
     ports:
@@ -17,5 +28,5 @@ services:
     env_file:
       - .env
     environment:
-      GOTENBERG_URL: http://gotenberg:4000
+      GOTENBERG_URL: http://gotenberg:8090
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}

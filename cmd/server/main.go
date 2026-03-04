@@ -117,6 +117,10 @@ func main() {
 		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
 	)
 
+	r.Get("/v1/reports/{id}/pdf",
+		handlers.NewReportPDFHandler(logger, store, pdfRenderer, cfg.LogoURL).ServeHTTP,
+	)
+
 	r.Get("/v1/reports/{id}/html",
 		handlers.NewReportHTMLHandler(logger, store, cfg.LogoURL).ServeHTTP,
 	)

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -162,9 +164,21 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer pdfReader.Close()
 
+	pdfBytes, err := io.ReadAll(pdfReader)
+	if err != nil {
+		h.logger.Error("failed to read pdf response",
+			append(requestLogAttrs,
+				slog.String("jobId", jobID),
+				slog.String("error", err.Error()),
+			)...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "PDF_ERROR", "failed to read PDF", nil)
+		return
+	}
+
 	pdfKey := pdfObjectKey(h.outputPrefix, jobID)
 	uploadStart := time.Now()
-	if err := h.storage.UploadPDF(r.Context(), pdfKey, pdfReader); err != nil {
+	if err := h.storage.UploadPDF(r.Context(), pdfKey, bytes.NewReader(pdfBytes)); err != nil {
 		h.logger.Error("failed to upload pdf",
 			append(requestLogAttrs,
 				slog.String("jobId", jobID),
