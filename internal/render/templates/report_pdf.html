@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.InterventionName}} - {{.InvoiceNumber}}</title>
+  <style>{{.Styles}}</style>
+</head>
+<body>
+  <main class="report-shell">
+
+    <section class="panel hero">
+      <header class="hero-head">
+        <div class="brand">
+          {{if .HeaderLogoURL}}
+          <img class="logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe"
+               loading="eager" decoding="sync" fetchpriority="high" />
+          {{end}}
+          <div>
+            <p class="eyebrow">Rapport d'intervention</p>
+            <h1>{{.InterventionName}}</h1>
+            <p class="address">{{.Address}}</p>
+          </div>
+        </div>
+
+        <div class="invoice-meta">
+          <div class="meta-tile">
+            <span class="meta-label">Facture</span>
+            <span class="meta-value">{{.InvoiceNumber}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">Dates images</span>
+            <span class="meta-value">{{.Date}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">E-mail</span>
+            <span class="meta-value">{{.Email}}</span>
+          </div>
+          <div class="meta-tile">
+            <span class="meta-label">Telephone</span>
+            <span class="meta-value">{{.Phone}}</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="company-strip">
+        <div class="company-card">
+          <span class="meta-label">Entreprise</span>
+          <span class="meta-value">{{.Company.Name}}</span>
+        </div>
+      </div>
+    </section>
+
+    {{if .MessageHTML}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Message</h2>
+      </div>
+      <article class="message-card">{{.MessageHTML}}</article>
+    </section>
+    {{end}}
+
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Documentation avant / apres</h2>
+        <p>{{.PairsCount}} Paire(s)</p>
+      </div>
+      <div class="pairs-list">
+        {{range .Pairs}}
+        <article class="pair-card">
+          {{if and $.IncludeDates .Date}}<span class="pair-date-badge">{{.Date}}</span>{{end}}
+          <div class="{{$.PairGridClass}}">
+            <div class="image-tile">
+              <div class="tile-head"><span class="pill">Avant</span></div>
+              <div class="img-wrap">
+                <img src="{{.BeforeURL}}" alt="Photo avant {{.Index}}"
+                     loading="eager" decoding="sync"
+                     onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
+              </div>
+            </div>
+            <div class="image-tile">
+              <div class="tile-head"><span class="pill">Apres</span></div>
+              <div class="img-wrap">
+                <img src="{{.AfterURL}}" alt="Photo apres {{.Index}}"
+                     loading="eager" decoding="sync"
+                     onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
+              </div>
+            </div>
+          </div>
+          {{if .Caption}}<p class="caption">{{.Caption}}</p>{{end}}
+        </article>
+        {{end}}
+      </div>
+    </section>
+
+    {{if .Trucks}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Photos camions</h2>
+        <p>{{len .Trucks}} Element(s)</p>
+      </div>
+      <div class="photo-grid">
+        {{range .Trucks}}
+        <article class="image-tile">
+          <div class="tile-head">
+            <span class="pill">Camion {{.Index}}</span>
+            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
+          </div>
+          <div class="img-wrap">
+            <img src="{{.URL}}" alt="Photo camion {{.Index}}"
+                 loading="eager" decoding="sync"
+                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
+          </div>
+        </article>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    {{if .Evidences}}
+    <section class="panel section">
+      <div class="section-head">
+        <h2>Photos preuves</h2>
+        <p>{{len .Evidences}} Element(s)</p>
+      </div>
+      <div class="photo-grid">
+        {{range .Evidences}}
+        <article class="image-tile">
+          <div class="tile-head">
+            <span class="pill">Preuve {{.Index}}</span>
+            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
+          </div>
+          <div class="img-wrap">
+            <img src="{{.URL}}" alt="Photo preuve {{.Index}}"
+                 loading="eager" decoding="sync"
+                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
+          </div>
+        </article>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    <footer class="panel footer">
+      <div class="footer-head">
+        <h2>Couverture de services - Edition entreprise</h2>
+        <p>Services operes par IDEO Groupe.</p>
+      </div>
+
+      <ul class="services-grid">
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-gestion-benne.png" alt="Gestion des bennes" /><span class="service-text">Gestion des bennes</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage.png" alt="Nettoyage de chantier" /><span class="service-text">Nettoyage de chantier</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/videosurveillance.png" alt="Video-surveillance" /><span class="service-text">Video-surveillance</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-deblayage.png" alt="Deblayage urgent" /><span class="service-text">Deblayage urgent</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage-chaussee.png" alt="Nettoyage de chaussee" /><span class="service-text">Nettoyage de chaussee</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/nettoyagedescantonnements.png" alt="Nettoyage de cantonements" /><span class="service-text">Nettoyage de cantonements</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-livraisonfinale.png" alt="Nettoyage avant livraison" /><span class="service-text">Nettoyage avant livraison</span></li>
+        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-nettoyage.png" alt="Sous-sol et parking" /><span class="service-text">Sous-sol et parking</span></li>
+      </ul>
+
+      <div class="contact-band">
+        <div class="contact-left">
+          <a class="contact-pill" href="mailto:contact@ideogroupe.fr"><span class="dot"></span>contact@ideogroupe.fr</a>
+          <a class="contact-pill" href="tel:+330188247111"><span class="dot"></span>+33 01 88 24 71 11</a>
+        </div>
+        <div class="contact-right">
+          <span class="social-title">Reseaux</span>
+          <a class="social-pill" href="https://ideogroupe.fr/" target="_blank" rel="noopener noreferrer">WEB</a>
+          <a class="social-pill" href="https://fr.linkedin.com/company/ideogroupe" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+</body>
+</html>

@@ -17,7 +17,7 @@ import (
 	"pdf-html-service/internal/models"
 )
 
-//go:embed templates/report.html templates/report.css
+//go:embed templates/report.html templates/report_pdf.html templates/report.css
 var reportTemplateFS embed.FS
 
 var messagePolicy = bluemonday.UGCPolicy()
@@ -50,6 +50,7 @@ type templateData struct {
 	Email            string
 	Phone            string
 	PairsCount       int
+	Pairs             []pairView
 	PairsJSON         template.JS
 	PairGridClassJSON template.JS
 	IncludeDatesJS    template.JS
@@ -58,30 +59,59 @@ type templateData struct {
 }
 
 var (
-	templateOnce sync.Once
-	tpl          *template.Template
-	cssContent   template.CSS
-	tplErr       error
+	htmlOnce sync.Once
+	htmlTpl  *template.Template
+	htmlCSS  template.CSS
+	htmlErr  error
+
+	pdfOnce sync.Once
+	pdfTpl  *template.Template
+	pdfCSS  template.CSS
+	pdfErr  error
 )
 
 var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 
-func loadTemplateBundle() (*template.Template, template.CSS, error) {
-	templateOnce.Do(func() {
+func loadHTMLBundle() (*template.Template, template.CSS, error) {
+	htmlOnce.Do(func() {
 		htmlBytes, err := reportTemplateFS.ReadFile("templates/report.html")
 		if err != nil {
-			tplErr = fmt.Errorf("read report.html: %w", err)
+			htmlErr = fmt.Errorf("read report.html: %w", err)
 			return
 		}
 		cssBytes, err := reportTemplateFS.ReadFile("templates/report.css")
 		if err != nil {
-			tplErr = fmt.Errorf("read report.css: %w", err)
+			htmlErr = fmt.Errorf("read report.css: %w", err)
 			return
 		}
-		cssContent = template.CSS(string(cssBytes))
-		tpl, tplErr = template.New("report").Parse(string(htmlBytes))
+		htmlCSS = template.CSS(string(cssBytes))
+		htmlTpl, htmlErr = template.New("report").Parse(string(htmlBytes))
 	})
-	return tpl, cssContent, tplErr
+	return htmlTpl, htmlCSS, htmlErr
+}
+
+func loadPDFBundle() (*template.Template, template.CSS, error) {
+	pdfOnce.Do(func() {
+		htmlBytes, err := reportTemplateFS.ReadFile("templates/report_pdf.html")
+		if err != nil {
+			pdfErr = fmt.Errorf("read report_pdf.html: %w", err)
+			return
+		}
+		cssBytes, err := reportTemplateFS.ReadFile("templates/report.css")
+		if err != nil {
+			pdfErr = fmt.Errorf("read report.css: %w", err)
+			return
+		}
+		css := template.CSS(string(cssBytes))
+		t, err := template.New("report_pdf").Parse(string(htmlBytes))
+		if err != nil {
+			pdfErr = fmt.Errorf("parse report_pdf.html: %w", err)
+			return
+		}
+		pdfTpl = t
+		pdfCSS = css
+	})
+	return pdfTpl, pdfCSS, pdfErr
 }
 
 func effectiveIncludeDates(payload models.ReportRequest) bool {
@@ -192,6 +222,7 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 		Email:             email,
 		Phone:             phone,
 		PairsCount:        len(pairs),
+		Pairs:             pairs,
 		PairsJSON:         template.JS(pairsJSON),
 		PairGridClassJSON: template.JS(gridClassJSON),
 		IncludeDatesJS:    template.JS(includeDatesStr),
@@ -207,7 +238,7 @@ func RenderHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest
 	default:
 	}
 
-	reportTpl, styles, err := loadTemplateBundle()
+	t, styles, err := loadHTMLBundle()
 	if err != nil {
 		return err
 	}
@@ -217,7 +248,27 @@ func RenderHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest
 		return err
 	}
 
-	return reportTpl.Execute(w, data)
+	return t.Execute(w, data)
+}
+
+func RenderPDFHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest, logoURL string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	t, styles, err := loadPDFBundle()
+	if err != nil {
+		return err
+	}
+
+	data, err := buildTemplateData(payload, styles, logoURL)
+	if err != nil {
+		return err
+	}
+
+	return t.Execute(w, data)
 }
 
 func RenderHTML(payload models.ReportRequest) (string, error) {
@@ -225,7 +276,7 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 }
 
 func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
-	reportTpl, styles, err := loadTemplateBundle()
+	t, styles, err := loadHTMLBundle()
 	if err != nil {
 		return "", err
 	}
@@ -239,7 +290,7 @@ func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, e
 	buf.Reset()
 	defer bufPool.Put(buf)
 
-	if err := reportTpl.Execute(buf, data); err != nil {
+	if err := t.Execute(buf, data); err != nil {
 		return "", err
 	}
 	return buf.String(), nil

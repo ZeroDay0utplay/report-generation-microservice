@@ -26,8 +26,8 @@ func NewReportHTMLHandler(logger *slog.Logger, store jobstore.Store, logoURL str
 }
 
 func (h *ReportHTMLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	jobID := chi.URLParam(r, "id")
 	reqID := middleware.RequestIDFromContext(r.Context())
+	jobID := chi.URLParam(r, "id")
 
 	payload, err := h.store.GetPayload(r.Context(), jobID)
 	if err != nil {

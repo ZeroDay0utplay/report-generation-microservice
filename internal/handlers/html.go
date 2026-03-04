@@ -17,7 +17,7 @@ import (
 
 type ReportSubmitHandler struct {
 	baseHandler
-	store        jobstore.Store
+	store         jobstore.Store
 	publicBaseURL string
 }
 

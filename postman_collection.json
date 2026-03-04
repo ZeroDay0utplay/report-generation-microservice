@@ -93,6 +93,23 @@
             ],
             "url": "{{base_url}}/v1/reports/{{job_id}}/html"
           }
+        },
+        {
+          "name": "GET /v1/reports/:id/pdf – Download PDF (streaming)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/reports/{{job_id}}/pdf"
+          }
+        },
+        {
+          "name": "GET /v1/reports/:id/pdf – ETag cache hit (304)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "If-None-Match", "value": "\"pdf-{{job_id}}\"" }
+            ],
+            "url": "{{base_url}}/v1/reports/{{job_id}}/pdf"
+          }
         }
       ]
     },
