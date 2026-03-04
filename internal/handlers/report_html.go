@@ -61,6 +61,9 @@ func (h *ReportHTMLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'none'; style-src 'unsafe-inline'; img-src * data:; script-src 'unsafe-inline'; frame-ancestors 'none';",
+	)
 
 	acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 	start := time.Now()
