@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,143 +13,188 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	appmiddleware "pdf-html-service/internal/middleware"
+	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
 	"pdf-html-service/internal/security"
 )
 
-func TestHTMLHandlerInvalidPayload(t *testing.T) {
-	storage := newMockStorage()
-	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
+func newTestRouter(submitHandler *ReportSubmitHandler, store jobstore.Store) *chi.Mux {
+	r := chi.NewRouter()
+	r.Use(appmiddleware.RequestID)
+	r.Post("/v1/reports", submitHandler.ServeHTTP)
+	r.Get("/v1/reports/{id}", NewReportStatusHandler(testLogger(), store).ServeHTTP)
+	r.Get("/v1/reports/{id}/html", NewReportHTMLHandler(testLogger(), store, "").ServeHTTP)
+	return r
+}
 
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/html", h.ServeHTTP)
+func TestReportSubmitInvalidPayload(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "")
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewBufferString(`{"invoiceNumber":""}`))
+	router := newTestRouter(h, store)
+	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewBufferString(`{"invoiceNumber":""}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", rr.Code)
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
-
 	var resp models.ErrorResponse
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
+		t.Fatalf("decode: %v", err)
 	}
-	if resp.RequestID == "" {
-		t.Fatal("expected requestId in error response")
-	}
-	if resp.Error.Code == "" {
-		t.Fatal("expected error code")
+	if resp.RequestID == "" || resp.Error.Code == "" {
+		t.Fatal("expected requestId and error code")
 	}
 }
 
-func TestHTMLHandlerTooManyPairs(t *testing.T) {
-	storage := newMockStorage()
-	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 1, "docs")
+func TestReportSubmitTooManyPairs(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 1, "")
 
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/html", h.ServeHTTP)
-
+	router := newTestRouter(h, store)
 	payload := samplePayload()
 	payload.Pairs = append(payload.Pairs, payload.Pairs[0])
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("expected status 413, got %d", rr.Code)
+		t.Fatalf("expected 413, got %d", rr.Code)
 	}
 }
 
-func TestHTMLHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
-	storage := newMockStorage()
-	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
+func TestReportSubmitSuccess(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "https://example.com")
 
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/html", h.ServeHTTP)
-
-	payload := samplePayload()
-	payload.InvoiceNumber = models.StringPtr("")
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
-	}
-}
-
-func TestHTMLHandlerAllowsNullInvoiceNumber(t *testing.T) {
-	storage := newMockStorage()
-	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
-
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/html", h.ServeHTTP)
-
-	payload := samplePayload()
-	payload.InvoiceNumber = nil
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
-	}
-}
-
-func TestHTMLHandlerSuccess(t *testing.T) {
-	storage := newMockStorage()
-	h := NewHTMLHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, 5, "docs")
-
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/html", h.ServeHTTP)
-
+	router := newTestRouter(h, store)
 	payload := samplePayload()
 	body, _ := json.Marshal(payload)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/html", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
 	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rr.Code)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body.String())
 	}
 
-	var resp models.HTMLResponse
+	var resp models.ReportSubmitResponse
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.JobID == "" || resp.HTMLURL == "" || resp.Status != "ready" {
+		t.Fatalf("expected jobId, htmlUrl, status=ready, got %+v", resp)
+	}
+	if !strings.Contains(resp.HTMLURL, resp.JobID) {
+		t.Fatalf("htmlUrl should contain jobId, got %s", resp.HTMLURL)
+	}
+}
+
+func TestReportSubmitIdempotent(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "https://example.com")
+
+	router := newTestRouter(h, store)
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+
+	submit := func() models.ReportSubmitResponse {
+		req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		var resp models.ReportSubmitResponse
+		json.NewDecoder(rr.Body).Decode(&resp)
+		return resp
 	}
 
-	if resp.RequestID == "" || resp.JobID == "" || resp.HTMLKey == "" || resp.HTMLURL == "" {
-		t.Fatalf("expected non-empty response fields, got %+v", resp)
+	first := submit()
+	second := submit()
+
+	if first.JobID != second.JobID {
+		t.Fatalf("expected same jobId for same payload, got %s vs %s", first.JobID, second.JobID)
 	}
-	if _, ok := storage.htmlObjects[resp.HTMLKey]; !ok {
-		t.Fatalf("expected html object %q to be uploaded", resp.HTMLKey)
+}
+
+func TestReportHTMLSSR(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "")
+
+	router := newTestRouter(h, store)
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	var submitResp models.ReportSubmitResponse
+	json.NewDecoder(rr.Body).Decode(&submitResp)
+
+	htmlReq := httptest.NewRequest(http.MethodGet, "/v1/reports/"+submitResp.JobID+"/html", nil)
+	htmlRr := httptest.NewRecorder()
+	router.ServeHTTP(htmlRr, htmlReq)
+
+	if htmlRr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", htmlRr.Code)
 	}
-	html := storage.htmlObjects[resp.HTMLKey]
-	if !strings.Contains(html, "Photos camions") || !strings.Contains(html, "Photos preuves") {
-		t.Fatalf("expected uploaded HTML to include trucks and evidences sections")
+	html := htmlRr.Body.String()
+	if !strings.Contains(html, "Documentation avant / apres") {
+		t.Fatal("expected HTML to contain pair section heading")
+	}
+	if !strings.Contains(html, "__REPORT_DATA__") {
+		t.Fatal("expected HTML to contain virtual scroll data")
+	}
+	if !strings.Contains(html, "Photos camions") {
+		t.Fatal("expected HTML to contain trucks section")
+	}
+	if !strings.Contains(html, "Photos preuves") {
+		t.Fatal("expected HTML to contain evidences section")
+	}
+}
+
+func TestReportHTMLEtag(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	payload := samplePayload()
+	job := jobstore.Job{ID: "job_test123", Status: "ready", HTMLURL: "/v1/reports/job_test123/html"}
+	store.Save(context.Background(), job, payload)
+
+	handler := NewReportHTMLHandler(testLogger(), store, "")
+
+	r := chi.NewRouter()
+	r.Get("/v1/reports/{id}/html", handler.ServeHTTP)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/reports/job_test123/html", nil)
+	req.Header.Set("If-None-Match", `"job_test123"`)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotModified {
+		t.Fatalf("expected 304 for matching ETag, got %d", rr.Code)
+	}
+}
+
+func TestReportStatusNotFound(t *testing.T) {
+	store := jobstore.NewMemoryStore()
+	handler := NewReportStatusHandler(testLogger(), store)
+
+	r := chi.NewRouter()
+	r.Use(appmiddleware.RequestID)
+	r.Get("/v1/reports/{id}", handler.ServeHTTP)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/reports/doesnotexist", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }

@@ -1,167 +1,97 @@
 package handlers
 
 import (
-	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 
+	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
-	"pdf-html-service/internal/render"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/util"
 )
 
-type HTMLHandler struct {
-	logger       *slog.Logger
-	validator    *validator.Validate
-	urlPolicy    *security.URLPolicy
-	storage      Storage
-	maxPairs     int
-	outputPrefix string
+type ReportSubmitHandler struct {
+	baseHandler
+	store        jobstore.Store
+	publicBaseURL string
 }
 
-func NewHTMLHandler(
+func NewReportSubmitHandler(
 	logger *slog.Logger,
-	validator *validator.Validate,
+	validate *validator.Validate,
 	urlPolicy *security.URLPolicy,
-	storage Storage,
+	store jobstore.Store,
 	maxPairs int,
-	outputPrefix string,
-) *HTMLHandler {
-	return &HTMLHandler{
-		logger:       logger,
-		validator:    validator,
-		urlPolicy:    urlPolicy,
-		storage:      storage,
-		maxPairs:     maxPairs,
-		outputPrefix: outputPrefix,
+	publicBaseURL string,
+) *ReportSubmitHandler {
+	return &ReportSubmitHandler{
+		baseHandler:   baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
+		store:         store,
+		publicBaseURL: publicBaseURL,
 	}
 }
 
-func (h *HTMLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	baseLogAttrs := []any{
-		slog.String("requestId", requestID(r)),
-		slog.String("route", r.URL.Path),
-	}
-
-	var payload models.ReportRequest
-	if ok := decodeJSONBody(w, r, &payload); !ok {
-		h.logger.Warn("html request rejected",
-			append(baseLogAttrs, slog.String("errorCode", "INVALID_JSON"))...,
-		)
+func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(body) == 0 {
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "request body is required", nil)
 		return
 	}
 
-	requestLogAttrs := append(baseLogAttrs,
-		slog.String("invoiceNumber", models.StringOrEmpty(payload.InvoiceNumber)),
-		slog.Int("pairsCount", len(payload.Pairs)),
+	payload, reqAttrs, ok := h.validateReportPayload(w, r, body)
+	if !ok {
+		return
+	}
+
+	jobID := util.JobIDFromPayload(body)
+
+	existing, err := h.store.GetJob(r.Context(), jobID)
+	if err == nil {
+		h.logger.Info("report submit: returning cached job",
+			append(reqAttrs, slog.String("jobId", jobID))...,
+		)
+		writeJSON(w, http.StatusOK, models.ReportSubmitResponse{
+			RequestID: requestID(r),
+			JobID:     existing.ID,
+			Status:    existing.Status,
+			HTMLURL:   existing.HTMLURL,
+		})
+		return
+	}
+
+	htmlURL := fmt.Sprintf("%s/v1/reports/%s/html", h.publicBaseURL, jobID)
+	job := jobstore.Job{
+		ID:        jobID,
+		Status:    "ready",
+		HTMLURL:   htmlURL,
+		CreatedAt: time.Now(),
+	}
+
+	saved, saveErr := h.store.Save(r.Context(), job, *payload)
+	if saveErr != nil {
+		h.logger.Error("failed to save job",
+			append(reqAttrs,
+				slog.String("jobId", jobID),
+				slog.String("error", saveErr.Error()),
+			)...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "STORE_ERROR", "failed to save job", nil)
+		return
+	}
+
+	h.logger.Info("report submitted",
+		append(reqAttrs, slog.String("jobId", jobID))...,
 	)
 
-	if len(payload.Pairs) > h.maxPairs {
-		h.logger.Warn("html request rejected: pairs exceeds configured limit",
-			append(requestLogAttrs,
-				slog.String("errorCode", "TOO_MANY_PAIRS"),
-				slog.Int("maxPairs", h.maxPairs),
-			)...,
-		)
-		writeError(w, r, http.StatusRequestEntityTooLarge, "TOO_MANY_PAIRS", "pairs exceeds configured limit", map[string]any{"maxPairs": h.maxPairs})
-		return
-	}
-
-	if err := h.validator.Struct(payload); err != nil {
-		var ve validator.ValidationErrors
-		if errors.As(err, &ve) {
-			h.logger.Warn("html request rejected: payload validation failed",
-				append(requestLogAttrs,
-					slog.String("errorCode", "VALIDATION_ERROR"),
-					slog.Any("validationErrors", validationDetails(ve)),
-				)...,
-			)
-			writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "payload validation failed", validationDetails(ve))
-			return
-		}
-		h.logger.Error("html request validation failed with unexpected validator error",
-			append(requestLogAttrs,
-				slog.String("errorCode", "VALIDATION_ERROR"),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "payload validation failed", nil)
-		return
-	}
-
-	if err := h.urlPolicy.ValidatePayload(payload); err != nil {
-		var ve *security.ValidationError
-		if errors.As(err, &ve) {
-			h.logger.Warn("html request rejected: url policy validation failed",
-				append(requestLogAttrs,
-					slog.String("errorCode", "URL_POLICY_ERROR"),
-					slog.Any("violations", ve.Violations),
-				)...,
-			)
-			writeError(w, r, http.StatusBadRequest, "URL_POLICY_ERROR", "URL policy validation failed", ve.Violations)
-			return
-		}
-		h.logger.Error("html request url policy check failed unexpectedly",
-			append(requestLogAttrs,
-				slog.String("errorCode", "URL_POLICY_ERROR"),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusBadRequest, "URL_POLICY_ERROR", "URL policy validation failed", nil)
-		return
-	}
-
-	jobID := util.NewJobID()
-
-	htmlStart := time.Now()
-	htmlDoc, err := render.RenderHTML(payload)
-	htmlGenMS := time.Since(htmlStart).Milliseconds()
-	if err != nil {
-		h.logger.Error("failed to render html report",
-			append(requestLogAttrs,
-				slog.String("errorCode", "RENDER_ERROR"),
-				slog.String("jobId", jobID),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusInternalServerError, "RENDER_ERROR", "failed to render HTML", nil)
-		return
-	}
-
-	htmlKey := htmlObjectKey(h.outputPrefix, jobID)
-	uploadStart := time.Now()
-	if err := h.storage.UploadHTML(r.Context(), htmlKey, htmlDoc); err != nil {
-		h.logger.Error("failed to upload html report",
-			append(requestLogAttrs,
-				slog.String("errorCode", "UPLOAD_ERROR"),
-				slog.String("jobId", jobID),
-				slog.String("htmlKey", htmlKey),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusInternalServerError, "UPLOAD_ERROR", "failed to upload HTML", nil)
-		return
-	}
-	uploadMS := time.Since(uploadStart).Milliseconds()
-
-	h.logger.Info("html report generated",
-		slog.String("requestId", requestID(r)),
-		slog.String("jobId", jobID),
-		slog.String("route", r.URL.Path),
-		slog.String("invoiceNumber", models.StringOrEmpty(payload.InvoiceNumber)),
-		slog.Int("pairsCount", len(payload.Pairs)),
-		slog.Int64("html_gen_ms", htmlGenMS),
-		slog.Int64("upload_ms", uploadMS),
-	)
-
-	writeJSON(w, http.StatusOK, models.HTMLResponse{
+	writeJSON(w, http.StatusCreated, models.ReportSubmitResponse{
 		RequestID: requestID(r),
-		JobID:     jobID,
-		HTMLKey:   htmlKey,
-		HTMLURL:   h.storage.PublicURL(htmlKey),
+		JobID:     saved.ID,
+		Status:    saved.Status,
+		HTMLURL:   saved.HTMLURL,
 	})
 }

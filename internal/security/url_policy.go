@@ -30,6 +30,9 @@ type URLPolicy struct {
 	allowlist    map[string]struct{}
 }
 
+// NewURLPolicy creates a URLPolicy. When requireHTTPS is true every image URL
+// must use the https scheme. allowlist restricts hosts to the given list when
+// non-empty.
 func NewURLPolicy(requireHTTPS bool, allowlist []string) *URLPolicy {
 	wl := make(map[string]struct{}, len(allowlist))
 	for _, h := range allowlist {
@@ -38,13 +41,10 @@ func NewURLPolicy(requireHTTPS bool, allowlist []string) *URLPolicy {
 			wl[h] = struct{}{}
 		}
 	}
-
-	return &URLPolicy{
-		requireHTTPS: requireHTTPS,
-		allowlist:    wl,
-	}
+	return &URLPolicy{requireHTTPS: requireHTTPS, allowlist: wl}
 }
 
+// ValidatePayload checks every URL in the payload against the policy.
 func (p *URLPolicy) ValidatePayload(payload models.ReportRequest) error {
 	violations := make([]Violation, 0)
 
@@ -53,7 +53,6 @@ func (p *URLPolicy) ValidatePayload(payload models.ReportRequest) error {
 			violations = append(violations, Violation{Field: "company.logoUrl", Message: err.Error()})
 		}
 	}
-
 	if payload.Company.Website != "" {
 		if err := p.validateURL("company.website", payload.Company.Website); err != nil {
 			violations = append(violations, Violation{Field: "company.website", Message: err.Error()})
@@ -61,14 +60,13 @@ func (p *URLPolicy) ValidatePayload(payload models.ReportRequest) error {
 	}
 
 	for i, pair := range payload.Pairs {
-		beforeField := fmt.Sprintf("pairs[%d].beforeUrl", i)
-		afterField := fmt.Sprintf("pairs[%d].afterUrl", i)
-
-		if err := p.validateURL(beforeField, pair.BeforeURL); err != nil {
-			violations = append(violations, Violation{Field: beforeField, Message: err.Error()})
+		before := fmt.Sprintf("pairs[%d].beforeUrl", i)
+		after := fmt.Sprintf("pairs[%d].afterUrl", i)
+		if err := p.validateURL(before, pair.BeforeURL); err != nil {
+			violations = append(violations, Violation{Field: before, Message: err.Error()})
 		}
-		if err := p.validateURL(afterField, pair.AfterURL); err != nil {
-			violations = append(violations, Violation{Field: afterField, Message: err.Error()})
+		if err := p.validateURL(after, pair.AfterURL); err != nil {
+			violations = append(violations, Violation{Field: after, Message: err.Error()})
 		}
 	}
 
@@ -95,29 +93,32 @@ func (p *URLPolicy) ValidatePayload(payload models.ReportRequest) error {
 func (p *URLPolicy) validateURL(field, raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid URL")
+		return fmt.Errorf("field %s: invalid URL", field)
 	}
 
-	if p.requireHTTPS && !strings.EqualFold(u.Scheme, "https") {
-		return fmt.Errorf("must use https")
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("field %s: unsupported scheme %q (must be http or https)", field, scheme)
+	}
+	if p.requireHTTPS && scheme != "https" {
+		return fmt.Errorf("field %s: must use https", field)
 	}
 
 	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
 	if host == "" {
-		return fmt.Errorf("missing host")
+		return fmt.Errorf("field %s: missing host", field)
 	}
 
 	if isBlockedHost(host) {
-		return fmt.Errorf("host is not allowed")
+		return fmt.Errorf("field %s: host is not allowed", field)
 	}
 
 	if len(p.allowlist) > 0 {
 		if _, ok := p.allowlist[host]; !ok {
-			return fmt.Errorf("host not in allowlist")
+			return fmt.Errorf("field %s: host not in allowlist", field)
 		}
 	}
 
-	_ = field
 	return nil
 }
 
@@ -125,16 +126,13 @@ func isBlockedHost(host string) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		return true
 	}
-
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true
 	}
-
 	for _, suffix := range []string{".local", ".internal", ".intranet", ".home"} {
 		if strings.HasSuffix(host, suffix) {
 			return true
 		}
 	}
-
 	return false
 }

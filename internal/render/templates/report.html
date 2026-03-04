@@ -8,11 +8,14 @@
 </head>
 <body>
   <main class="report-shell">
+
+    <!-- ── Hero ── -->
     <section class="panel hero">
       <header class="hero-head">
         <div class="brand">
           {{if .HeaderLogoURL}}
-          <img class="logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe" />
+          <img class="logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe"
+               loading="eager" decoding="sync" fetchpriority="high" />
           {{end}}
           <div>
             <p class="eyebrow">Rapport d'intervention</p>
@@ -49,6 +52,7 @@
       </div>
     </section>
 
+    <!-- ── Message (optional) ── -->
     {{if .MessageHTML}}
     <section class="panel section">
       <div class="section-head">
@@ -58,34 +62,20 @@
     </section>
     {{end}}
 
-    <section class="panel section">
+    <!-- ── Pairs — virtual scroll shell ── -->
+    <section class="panel section" id="pairs-section">
       <div class="section-head">
         <h2>Documentation avant / apres</h2>
-        <p>{{len .Pairs}} Paire(s)</p>
+        <p id="pairs-count">{{.PairsCount}} Paire(s)</p>
       </div>
-
-      {{range .Pairs}}
-      <article class="pair-card">
-        {{if $.IncludeDates}}{{if .Date}}<span class="pair-date-badge">{{.Date}}</span>{{end}}{{end}}
-        <div class="{{$.PairGridClass}}">
-          <div class="image-tile">
-            <div class="tile-head"><span class="pill">Avant</span></div>
-            <div class="img-wrap">
-              <img src="{{.BeforeURL}}" alt="Photo avant {{.Index}}" />
-            </div>
-          </div>
-          <div class="image-tile">
-            <div class="tile-head"><span class="pill">Apres</span></div>
-            <div class="img-wrap">
-              <img src="{{.AfterURL}}" alt="Photo apres {{.Index}}" />
-            </div>
-          </div>
-        </div>
-        {{if .Caption}}<p class="caption">{{.Caption}}</p>{{end}}
-      </article>
-      {{end}}
+      <div id="vs-viewport">
+        <div id="vs-spacer-top"></div>
+        <div id="vs-items"></div>
+        <div id="vs-spacer-bot"></div>
+      </div>
     </section>
 
+    <!-- ── Trucks (server-side rendered, lazy loaded) ── -->
     {{if .Trucks}}
     <section class="panel section">
       <div class="section-head">
@@ -95,9 +85,14 @@
       <div class="photo-grid">
         {{range .Trucks}}
         <article class="image-tile">
-          <div class="tile-head"><span class="pill">Camion {{.Index}}</span>{{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}</div>
+          <div class="tile-head">
+            <span class="pill">Camion {{.Index}}</span>
+            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
+          </div>
           <div class="img-wrap">
-            <img src="{{.URL}}" alt="Photo camion {{.Index}}" />
+            <img src="{{.URL}}" alt="Photo camion {{.Index}}"
+                 loading="lazy" decoding="async"
+                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
           </div>
         </article>
         {{end}}
@@ -105,6 +100,7 @@
     </section>
     {{end}}
 
+    <!-- ── Evidences (server-side rendered, lazy loaded) ── -->
     {{if .Evidences}}
     <section class="panel section">
       <div class="section-head">
@@ -114,9 +110,14 @@
       <div class="photo-grid">
         {{range .Evidences}}
         <article class="image-tile">
-          <div class="tile-head"><span class="pill">Preuve {{.Index}}</span>{{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}</div>
+          <div class="tile-head">
+            <span class="pill">Preuve {{.Index}}</span>
+            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
+          </div>
           <div class="img-wrap">
-            <img src="{{.URL}}" alt="Photo preuve {{.Index}}" />
+            <img src="{{.URL}}" alt="Photo preuve {{.Index}}"
+                 loading="lazy" decoding="async"
+                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
           </div>
         </article>
         {{end}}
@@ -124,6 +125,7 @@
     </section>
     {{end}}
 
+    <!-- ── Footer ── -->
     <footer class="panel footer">
       <div class="footer-head">
         <h2>Couverture de services - Edition entreprise</h2>
@@ -131,14 +133,14 @@
       </div>
 
       <ul class="services-grid">
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-gestion-benne.png" alt="Gestion des bennes" /><span class="service-text">Gestion des bennes</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage.png" alt="Nettoyage de chantier" /><span class="service-text">Nettoyage de chantier</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/10/videosurveillance.png" alt="Video-surveillance" /><span class="service-text">Video-surveillance</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-deblayage.png" alt="Deblayage urgent" /><span class="service-text">Deblayage urgent</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage-chaussee.png" alt="Nettoyage de chaussee" /><span class="service-text">Nettoyage de chaussee</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/10/nettoyagedescantonnements.png" alt="Nettoyage de cantonements" /><span class="service-text">Nettoyage de cantonements</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-livraisonfinale.png" alt="Nettoyage avant livraison" /><span class="service-text">Nettoyage avant livraison</span></li>
-        <li class="service-item"><img class="service-image" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-nettoyage.png" alt="Sous-sol et parking" /><span class="service-text">Sous-sol et parking</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-gestion-benne.png" alt="Gestion des bennes" /><span class="service-text">Gestion des bennes</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage.png" alt="Nettoyage de chantier" /><span class="service-text">Nettoyage de chantier</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/10/videosurveillance.png" alt="Video-surveillance" /><span class="service-text">Video-surveillance</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-deblayage.png" alt="Deblayage urgent" /><span class="service-text">Deblayage urgent</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage-chaussee.png" alt="Nettoyage de chaussee" /><span class="service-text">Nettoyage de chaussee</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/10/nettoyagedescantonnements.png" alt="Nettoyage de cantonements" /><span class="service-text">Nettoyage de cantonements</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-livraisonfinale.png" alt="Nettoyage avant livraison" /><span class="service-text">Nettoyage avant livraison</span></li>
+        <li class="service-item"><img class="service-image" loading="lazy" decoding="async" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-nettoyage.png" alt="Sous-sol et parking" /><span class="service-text">Sous-sol et parking</span></li>
       </ul>
 
       <div class="contact-band">
@@ -146,7 +148,6 @@
           <a class="contact-pill" href="mailto:contact@ideogroupe.fr"><span class="dot"></span>contact@ideogroupe.fr</a>
           <a class="contact-pill" href="tel:+330188247111"><span class="dot"></span>+33 01 88 24 71 11</a>
         </div>
-
         <div class="contact-right">
           <span class="social-title">Reseaux</span>
           <a class="social-pill" href="https://ideogroupe.fr/" target="_blank" rel="noopener noreferrer">WEB</a>
@@ -154,6 +155,126 @@
         </div>
       </div>
     </footer>
+
   </main>
+
+  <!-- ── Report data for virtual scroll engine ── -->
+  <script>
+  window.__REPORT_DATA__ = {
+    gridClass: {{.PairGridClassJSON}},
+    includeDates: {{.IncludeDatesJS}},
+    pairs: {{.PairsJSON}}
+  };
+  </script>
+
+  <!-- ── Self-contained virtual scroll engine ── -->
+  <script>
+  (function () {
+    var data = window.__REPORT_DATA__;
+    if (!data || !data.pairs || !data.pairs.length) return;
+
+    var ITEM_HEIGHT = 480;  // estimated pair card height in px
+    var BUFFER      = 4;    // extra rows rendered above/below visible area
+
+    var viewport  = document.getElementById('vs-viewport');
+    var spacerTop = document.getElementById('vs-spacer-top');
+    var spacerBot = document.getElementById('vs-spacer-bot');
+    var container = document.getElementById('vs-items');
+    var countEl   = document.getElementById('pairs-count');
+
+    if (countEl) countEl.textContent = data.pairs.length + ' Paire(s)';
+
+    var totalHeight = data.pairs.length * ITEM_HEIGHT;
+    var vpHeight    = Math.min(window.innerHeight * 0.88, totalHeight);
+    viewport.style.height    = vpHeight + 'px';
+    viewport.style.overflowY = 'auto';
+
+    var lastStart = -1, lastEnd = -1;
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+    function escAttr(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function buildCard(p, i) {
+      var isFirst  = i < 2;
+      var loading  = isFirst ? 'eager' : 'lazy';
+      var fp       = isFirst ? ' fetchpriority="high"' : '';
+      var dateBadge = (data.includeDates && p.date)
+        ? '<span class="pair-date-badge">' + esc(p.date) + '</span>' : '';
+      var caption = p.caption
+        ? '<p class="caption">' + esc(p.caption) + '</p>' : '';
+
+      return '<article class="pair-card">'
+        + dateBadge
+        + '<div class="' + esc(data.gridClass) + '">'
+        + '<div class="image-tile">'
+        + '<div class="tile-head"><span class="pill">Avant</span></div>'
+        + '<div class="img-wrap">'
+        + '<img src="' + escAttr(p.beforeUrl) + '" alt="Photo avant ' + (i + 1) + '"'
+        + ' loading="' + loading + '" decoding="async"' + fp
+        + ' onerror="this.style.cssText=\'min-height:200px;background:#e6edf4\';this.alt=\'Indisponible\'" />'
+        + '</div></div>'
+        + '<div class="image-tile">'
+        + '<div class="tile-head"><span class="pill">Apres</span></div>'
+        + '<div class="img-wrap">'
+        + '<img src="' + escAttr(p.afterUrl) + '" alt="Photo apres ' + (i + 1) + '"'
+        + ' loading="' + loading + '" decoding="async"' + fp
+        + ' onerror="this.style.cssText=\'min-height:200px;background:#e6edf4\';this.alt=\'Indisponible\'" />'
+        + '</div></div>'
+        + '</div>'
+        + caption
+        + '</article>';
+    }
+
+    function renderWindow() {
+      var scrollTop  = viewport.scrollTop;
+      var visRows    = Math.ceil(vpHeight / ITEM_HEIGHT);
+      var startIdx   = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER);
+      var endIdx     = Math.min(data.pairs.length, startIdx + visRows + BUFFER * 2);
+
+      if (startIdx === lastStart && endIdx === lastEnd) return;
+      lastStart = startIdx;
+      lastEnd   = endIdx;
+
+      spacerTop.style.height = (startIdx * ITEM_HEIGHT) + 'px';
+      spacerBot.style.height = ((data.pairs.length - endIdx) * ITEM_HEIGHT) + 'px';
+
+      var html = '';
+      for (var i = startIdx; i < endIdx; i++) html += buildCard(data.pairs[i], i);
+      container.innerHTML = html;
+    }
+
+    // Print: expand all items into the DOM before the print dialog opens.
+    window.addEventListener('beforeprint', function () {
+      viewport.style.height   = 'auto';
+      viewport.style.overflow = 'visible';
+      spacerTop.style.height  = '0';
+      spacerBot.style.height  = '0';
+      var html = '';
+      for (var i = 0; i < data.pairs.length; i++) html += buildCard(data.pairs[i], i);
+      container.innerHTML = html;
+    });
+
+    // Restore virtual scroll after print dialog closes.
+    window.addEventListener('afterprint', function () {
+      viewport.style.height   = vpHeight + 'px';
+      viewport.style.overflow = 'auto';
+      lastStart = -1; lastEnd = -1;
+      renderWindow();
+    });
+
+    viewport.addEventListener('scroll', renderWindow, { passive: true });
+    renderWindow();
+  }());
+  </script>
+
 </body>
 </html>
