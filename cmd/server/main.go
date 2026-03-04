@@ -50,6 +50,20 @@ func main() {
 
 	logger := newLogger(cfg.LogLevel)
 
+	logger.Info("starting server",
+		slog.String("port", cfg.Port),
+		slog.Int("maxPairs", cfg.MaxPairs),
+		slog.Int("requestBodyLimitMB", cfg.RequestBodyLimitMB),
+		slog.Bool("requireHTTPS", cfg.RequireHTTPS),
+		slog.Bool("uploadHTMLOnPDF", cfg.UploadHTMLOnPDF),
+		slog.String("outputPrefix", cfg.OutputPrefix),
+		slog.String("logLevel", cfg.LogLevel),
+		slog.String("gotenbergURL", cfg.GotenbergURL),
+		slog.String("b2Endpoint", cfg.B2Endpoint),
+		slog.String("b2Bucket", cfg.B2Bucket),
+		slog.String("publicBaseURL", cfg.PublicBaseURL),
+	)
+
 	sharedHTTPClient := &http.Client{
 		Timeout: httpClientTimeout,
 		Transport: &http.Transport{
@@ -94,7 +108,7 @@ func main() {
 
 	r.Get("/health", handlers.NewHealthHandler().ServeHTTP)
 
-	r.With(appmiddleware.RateLimit(rate.Limit(reportSubmitRPS), reportSubmitBurst)).
+	r.With(appmiddleware.RateLimit(rate.Limit(reportSubmitRPS), reportSubmitBurst, logger)).
 		Post("/v1/reports",
 			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, cfg.MaxPairs, cfg.PublicBaseURL).ServeHTTP,
 		)
@@ -107,7 +121,7 @@ func main() {
 		handlers.NewReportHTMLHandler(logger, store, cfg.LogoURL).ServeHTTP,
 	)
 
-	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst)).
+	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
 		Post("/v1/pdf",
 			handlers.NewPDFHandler(logger, validate, urlPolicy, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF).ServeHTTP,
 		)
@@ -119,10 +133,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("server listening",
-			slog.String("port", cfg.Port),
-			slog.String("gotenbergUrl", cfg.GotenbergURL),
-		)
+		logger.Info("server ready", slog.String("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server stopped", slog.String("error", err.Error()))
 			os.Exit(1)
@@ -131,7 +142,8 @@ func main() {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+	sig := <-sigCh
+	logger.Info("shutdown signal received", slog.String("signal", sig.String()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
