@@ -70,6 +70,7 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 					logger.Error("panic recovered",
 						slog.Any("panic", rec),
 						slog.String("requestId", id),
+						slog.String("method", r.Method),
 						slog.String("route", r.URL.Path),
 					)
 					w.Header().Set("Content-Type", "application/json")
@@ -96,7 +97,8 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("method", r.Method),
 				slog.String("route", r.URL.Path),
 				slog.Int("status", sw.status),
-				slog.Int("bytes", sw.bytes),
+				slog.Int("bytes_sent", sw.bytes),
+				slog.Int64("content_length", r.ContentLength),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 			)
 		})
@@ -125,7 +127,7 @@ type visitor struct {
 	lastSeen time.Time
 }
 
-func RateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
+func RateLimit(rps rate.Limit, burst int, logger *slog.Logger) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	visitors := make(map[string]*visitor)
 
@@ -160,6 +162,12 @@ func RateLimit(rps rate.Limit, burst int) func(http.Handler) http.Handler {
 			mu.Unlock()
 
 			if !limiter.Allow() {
+				logger.Warn("rate limit exceeded",
+					slog.String("ip", ip),
+					slog.String("method", r.Method),
+					slog.String("route", r.URL.Path),
+					slog.String("requestId", RequestIDFromContext(r.Context())),
+				)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_ = json.NewEncoder(w).Encode(map[string]any{

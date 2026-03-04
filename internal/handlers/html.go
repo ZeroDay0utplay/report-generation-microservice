@@ -39,6 +39,10 @@ func NewReportSubmitHandler(
 func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
+		h.logger.Warn("report submit: empty or unreadable body",
+			slog.String("requestId", requestID(r)),
+			slog.String("route", r.URL.Path),
+		)
 		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "request body is required", nil)
 		return
 	}

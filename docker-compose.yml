@@ -3,7 +3,7 @@ services:
     image: gotenberg/gotenberg:8
     restart: unless-stopped
     expose:
-      - "8080"
+      - "4000"
 
   orchestrator:
     build:
@@ -13,9 +13,9 @@ services:
     depends_on:
       - gotenberg
     ports:
-      - "8080:8080"
+      - "4000:4000"
     env_file:
       - .env
     environment:
-      GOTENBERG_URL: http://gotenberg:8080
+      GOTENBERG_URL: http://gotenberg:4000
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
