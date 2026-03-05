@@ -131,7 +131,7 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	htmlStart := time.Now()
-	htmlDoc, err := render.RenderHTMLWithLogo(payload, h.logoURL)
+	htmlDoc, err := render.RenderPDFHTMLWithLogo(payload, h.logoURL)
 	htmlGenMS := time.Since(htmlStart).Milliseconds()
 	if err != nil {
 		h.logger.Error("failed to render html for pdf",

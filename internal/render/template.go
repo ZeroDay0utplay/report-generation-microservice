@@ -275,6 +275,27 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 	return RenderHTMLWithLogo(payload, "")
 }
 
+func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
+	t, styles, err := loadPDFBundle()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := buildTemplateData(payload, styles, logoURL)
+	if err != nil {
+		return "", err
+	}
+
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	if err := t.Execute(buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
 func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
 	t, styles, err := loadHTMLBundle()
 	if err != nil {
