@@ -19,7 +19,7 @@ import (
 func TestPDFHandlerInvalidPayload(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", false)
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -39,7 +39,7 @@ func TestPDFHandlerInvalidPayload(t *testing.T) {
 func TestPDFHandlerTooManyPairs(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 1, "docs", false)
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 1, "docs", false, "")
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -63,7 +63,7 @@ func TestPDFHandlerTooManyPairs(t *testing.T) {
 func TestPDFHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", false)
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -87,7 +87,7 @@ func TestPDFHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
 func TestPDFHandlerAllowsNullInvoiceNumber(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", false)
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -111,7 +111,7 @@ func TestPDFHandlerAllowsNullInvoiceNumber(t *testing.T) {
 func TestPDFHandlerSuccess(t *testing.T) {
 	storage := newMockStorage()
 	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7 test content")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), storage, renderer, 5, "docs", true)
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", true, "")
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
