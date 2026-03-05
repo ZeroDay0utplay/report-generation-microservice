@@ -2,175 +2,708 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{.InterventionName}} - {{.InvoiceNumber}}</title>
-  <style>{{.Styles}}</style>
+  <title>{{.InterventionName}} — {{.InvoiceNumber}}</title>
+  <style>
+    @page {
+      size: 210mm 193mm;
+      margin: 0;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --blue:        #0d79b5;
+      --blue-dark:   #0a5e90;
+      --blue-light:  #e8f3fa;
+      --blue-border: #b8d9ef;
+      --green:       #067a4f;
+      --green-light: #e6f6ef;
+      --green-border:#a8d9be;
+      --ink:         #0f2d3d;
+      --muted:       #5f7384;
+      --border:      #d8e0e8;
+      --surface:     #ffffff;
+      --soft:        #f8fafd;
+      --radius:      7px;
+      --radius-lg:   12px;
+      --px:          14mm;
+      --py:          10mm;
+    }
+
+    html, body {
+      font-family: "Segoe UI", "Avenir Next", Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .pdf-page {
+      width: 210mm;
+      height: 193mm;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      break-after: page;
+      page-break-after: always;
+      background: var(--surface);
+    }
+
+    .pdf-page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    .cover-hero {
+      background: linear-gradient(145deg, #0c2436 0%, #0d79b5 100%);
+      padding: 12mm var(--px) 10mm;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7mm;
+    }
+
+    .cover-brand-row {
+      display: flex;
+      align-items: center;
+      gap: 4mm;
+    }
+
+    .cover-logo {
+      width: 14mm;
+      height: 14mm;
+      object-fit: contain;
+      border-radius: 5px;
+      background: rgba(255,255,255,0.12);
+      padding: 1.5mm;
+      flex-shrink: 0;
+    }
+
+    .cover-eyebrow {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+    }
+
+    .cover-title {
+      font-size: 24pt;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      max-width: 160mm;
+    }
+
+    .cover-address {
+      font-size: 10pt;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.45;
+    }
+
+    .cover-body {
+      flex: 1;
+      padding: 8mm var(--px) 6mm;
+      display: flex;
+      flex-direction: column;
+      gap: 6mm;
+      overflow: hidden;
+    }
+
+    .section-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 3mm;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3.5mm;
+    }
+
+    .meta-card {
+      background: var(--soft);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 3.5mm 4.5mm;
+    }
+
+    .meta-card.full {
+      grid-column: 1 / -1;
+    }
+
+    .meta-label {
+      display: block;
+      font-size: 6.5pt;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.5mm;
+    }
+
+    .meta-value {
+      display: block;
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .message-box {
+      background: var(--blue-light);
+      border-left: 3px solid var(--blue);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 4mm 5mm;
+      font-size: 9pt;
+      line-height: 1.6;
+      color: var(--ink);
+    }
+
+    .cover-bar {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      padding: 4.5mm var(--px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--soft);
+    }
+
+    .cover-bar-brand {
+      font-size: 8pt;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .cover-bar-contact {
+      font-size: 8pt;
+      color: var(--muted);
+    }
+
+    .page-strip {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2mm 3mm;
+      border-bottom: 1px solid var(--border);
+      background: var(--soft);
+    }
+
+    .strip-left {
+      display: flex;
+      align-items: center;
+      gap: 3.5mm;
+    }
+
+    .strip-logo {
+      height: 6mm;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .strip-sep {
+      width: 1px;
+      height: 5.5mm;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .strip-title {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .strip-sub {
+      font-size: 7.5pt;
+      color: var(--muted);
+      margin-top: 0.5mm;
+    }
+
+    .strip-badge {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--blue);
+      background: var(--blue-light);
+      border: 1px solid var(--blue-border);
+      border-radius: 999px;
+      padding: 1.5mm 4mm;
+      white-space: nowrap;
+    }
+
+    .pair-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      padding: 4mm 2mm;
+      gap: 3mm;
+      overflow: hidden;
+    }
+
+    .pair-row {
+      display: flex;
+      flex-direction: row;
+      gap: 2mm;
+    }
+
+    .photo-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5mm;
+      min-width: 0;
+    }
+
+    .photo-col-label {
+      flex-shrink: 0;
+    }
+
+    .photo-pill {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 1mm 3mm;
+    }
+
+    .photo-pill.avant {
+      color: var(--blue);
+      background: var(--blue-light);
+      border: 1px solid var(--blue-border);
+    }
+
+    .photo-pill.apres {
+      color: var(--green);
+      background: var(--green-light);
+      border: 1px solid var(--green-border);
+    }
+
+    .photo-frame {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #e6edf4;
+    }
+
+    .photo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .pair-foot {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 4mm;
+    }
+
+    .pair-date-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 2mm;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .pair-date-tag::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .pair-caption {
+      font-size: 8.5pt;
+      color: var(--muted);
+      font-style: italic;
+      text-align: right;
+      max-width: 100mm;
+    }
+
+    .single-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4mm 2mm;
+      gap: 3mm;
+      overflow: hidden;
+    }
+
+    .single-date {
+      flex-shrink: 0;
+    }
+
+    .single-frame {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #e6edf4;
+    }
+
+    .single-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .footer-body {
+      flex: 1;
+      padding: 4mm var(--px) 3mm;
+      display: flex;
+      flex-direction: column;
+      gap: 4mm;
+      overflow: hidden;
+    }
+
+    .footer-heading h2 {
+      font-size: 15pt;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .footer-heading p {
+      font-size: 9pt;
+      color: var(--muted);
+      margin-top: 1.5mm;
+    }
+
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 3.5mm;
+      list-style: none;
+    }
+
+    .service-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5mm;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--soft);
+      padding: 4mm 3mm;
+    }
+
+    .service-img {
+      width: 22mm;
+      height: 22mm;
+      object-fit: contain;
+    }
+
+    .service-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-align: center;
+      color: var(--ink);
+      line-height: 1.35;
+    }
+
+    .footer-contact {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      padding: 5mm var(--px);
+      background: var(--soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .contact-group {
+      display: flex;
+      align-items: center;
+      gap: 5mm;
+    }
+
+    .contact-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 2mm;
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .cdot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--blue);
+      flex-shrink: 0;
+    }
+
+    .social-group {
+      display: flex;
+      align-items: center;
+      gap: 2.5mm;
+    }
+
+    .social-link {
+      font-size: 8pt;
+      font-weight: 700;
+      color: var(--blue);
+      background: var(--blue-light);
+      border: 1px solid var(--blue-border);
+      border-radius: 999px;
+      padding: 1.5mm 4mm;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
-  <main class="report-shell">
 
-    <section class="panel hero">
-      <header class="hero-head">
-        <div class="brand">
-          {{if .HeaderLogoURL}}
-          <img class="logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe"
-               loading="eager" decoding="sync" fetchpriority="high" />
-          {{end}}
-          <div>
-            <p class="eyebrow">Rapport d'intervention</p>
-            <h1>{{.InterventionName}}</h1>
-            <p class="address">{{.Address}}</p>
-          </div>
-        </div>
+<div class="pdf-page">
+  <div class="cover-hero">
+    <div class="cover-brand-row">
+      {{if .HeaderLogoURL}}<img class="cover-logo" src="{{.HeaderLogoURL}}" alt="Logo IDEO Groupe" loading="eager" decoding="sync" />{{end}}
+      <span class="cover-eyebrow">Rapport d'intervention</span>
+    </div>
+    <h1 class="cover-title">{{.InterventionName}}</h1>
+    <p class="cover-address">{{.Address}}</p>
+  </div>
 
-        <div class="invoice-meta">
-          <div class="meta-tile">
-            <span class="meta-label">Facture</span>
-            <span class="meta-value">{{.InvoiceNumber}}</span>
-          </div>
-          <div class="meta-tile">
-            <span class="meta-label">Dates images</span>
-            <span class="meta-value">{{.Date}}</span>
-          </div>
-          <div class="meta-tile">
-            <span class="meta-label">E-mail</span>
-            <span class="meta-value">{{.Email}}</span>
-          </div>
-          <div class="meta-tile">
-            <span class="meta-label">Telephone</span>
-            <span class="meta-value">{{.Phone}}</span>
-          </div>
-        </div>
-      </header>
-
-      <div class="company-strip">
-        <div class="company-card">
-          <span class="meta-label">Entreprise</span>
-          <span class="meta-value">{{.Company.Name}}</span>
-        </div>
+  <div class="cover-body">
+    <p class="section-label">Informations du rapport</p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label">N° Facture</span>
+        <span class="meta-value">{{.InvoiceNumber}}</span>
       </div>
-    </section>
-
+      <div class="meta-card">
+        <span class="meta-label">Date(s)</span>
+        <span class="meta-value">{{.Date}}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">Entreprise</span>
+        <span class="meta-value">{{.Company.Name}}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">Contact</span>
+        <span class="meta-value">{{.Company.Contact}}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">E-mail</span>
+        <span class="meta-value">{{.Email}}</span>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label">Téléphone</span>
+        <span class="meta-value">{{.Phone}}</span>
+      </div>
+      <div class="meta-card full">
+        <span class="meta-label">Contenu du rapport</span>
+        <span class="meta-value">{{.PairsCount}} paire(s) avant/après{{if .Trucks}} · {{len .Trucks}} camion(s){{end}}{{if .Evidences}} · {{len .Evidences}} preuve(s){{end}}</span>
+      </div>
+    </div>
     {{if .MessageHTML}}
-    <section class="panel section">
-      <div class="section-head">
-        <h2>Message</h2>
-      </div>
-      <article class="message-card">{{.MessageHTML}}</article>
-    </section>
+    <p class="section-label">Message</p>
+    <div class="message-box">{{.MessageHTML}}</div>
     {{end}}
+  </div>
 
-    <section class="panel section">
-      <div class="section-head">
-        <h2>Documentation avant / apres</h2>
-        <p>{{.PairsCount}} Paire(s)</p>
-      </div>
-      <div class="pairs-list">
-        {{range .Pairs}}
-        <article class="pair-card">
-          {{if and $.IncludeDates .Date}}<span class="pair-date-badge">{{.Date}}</span>{{end}}
-          <div class="{{$.PairGridClass}}">
-            <div class="image-tile">
-              <div class="tile-head"><span class="pill">Avant</span></div>
-              <div class="img-wrap">
-                <img src="{{.BeforeURL}}" alt="Photo avant {{.Index}}"
-                     loading="eager" decoding="sync"
-                     onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
-              </div>
-            </div>
-            <div class="image-tile">
-              <div class="tile-head"><span class="pill">Apres</span></div>
-              <div class="img-wrap">
-                <img src="{{.AfterURL}}" alt="Photo apres {{.Index}}"
-                     loading="eager" decoding="sync"
-                     onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
-              </div>
-            </div>
-          </div>
-          {{if .Caption}}<p class="caption">{{.Caption}}</p>{{end}}
-        </article>
-        {{end}}
-      </div>
-    </section>
+  <div class="cover-bar">
+    <span class="cover-bar-brand">IDEO Groupe — Document confidentiel</span>
+    <span class="cover-bar-contact">contact@ideogroupe.fr · +33 01 88 24 71 11</span>
+  </div>
+</div>
 
-    {{if .Trucks}}
-    <section class="panel section">
-      <div class="section-head">
-        <h2>Photos camions</h2>
-        <p>{{len .Trucks}} Element(s)</p>
+{{range .Pairs}}
+<div class="pdf-page">
+  <div class="page-strip">
+    <div class="strip-left">
+      {{if $.HeaderLogoURL}}<img class="strip-logo" src="{{$.HeaderLogoURL}}" alt="Logo" loading="eager" decoding="sync" />{{end}}
+      <div class="strip-sep"></div>
+      <div>
+        <div class="strip-title">{{$.InterventionName}}</div>
+        <div class="strip-sub">{{$.InvoiceNumber}}</div>
       </div>
-      <div class="photo-grid">
-        {{range .Trucks}}
-        <article class="image-tile">
-          <div class="tile-head">
-            <span class="pill">Camion {{.Index}}</span>
-            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
-          </div>
-          <div class="img-wrap">
-            <img src="{{.URL}}" alt="Photo camion {{.Index}}"
-                 loading="eager" decoding="sync"
-                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
-          </div>
-        </article>
-        {{end}}
-      </div>
-    </section>
-    {{end}}
+    </div>
+    <span class="strip-badge">Paire {{.Index}} / {{$.PairsCount}}</span>
+  </div>
 
-    {{if .Evidences}}
-    <section class="panel section">
-      <div class="section-head">
-        <h2>Photos preuves</h2>
-        <p>{{len .Evidences}} Element(s)</p>
-      </div>
-      <div class="photo-grid">
-        {{range .Evidences}}
-        <article class="image-tile">
-          <div class="tile-head">
-            <span class="pill">Preuve {{.Index}}</span>
-            {{if $.IncludeDates}}{{if .Date}}<span class="photo-date">{{.Date}}</span>{{end}}{{end}}
-          </div>
-          <div class="img-wrap">
-            <img src="{{.URL}}" alt="Photo preuve {{.Index}}"
-                 loading="eager" decoding="sync"
-                 onerror="this.style.cssText='min-height:200px;background:#e6edf4';this.alt='Indisponible'" />
-          </div>
-        </article>
-        {{end}}
-      </div>
-    </section>
-    {{end}}
-
-    <footer class="panel footer">
-      <div class="footer-head">
-        <h2>Couverture de services - Edition entreprise</h2>
-        <p>Services operes par IDEO Groupe.</p>
-      </div>
-
-      <ul class="services-grid">
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-gestion-benne.png" alt="Gestion des bennes" /><span class="service-text">Gestion des bennes</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage.png" alt="Nettoyage de chantier" /><span class="service-text">Nettoyage de chantier</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/videosurveillance.png" alt="Video-surveillance" /><span class="service-text">Video-surveillance</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-deblayage.png" alt="Deblayage urgent" /><span class="service-text">Deblayage urgent</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage-chaussee.png" alt="Nettoyage de chaussee" /><span class="service-text">Nettoyage de chaussee</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/nettoyagedescantonnements.png" alt="Nettoyage de cantonements" /><span class="service-text">Nettoyage de cantonements</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-livraisonfinale.png" alt="Nettoyage avant livraison" /><span class="service-text">Nettoyage avant livraison</span></li>
-        <li class="service-item"><img class="service-image" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-nettoyage.png" alt="Sous-sol et parking" /><span class="service-text">Sous-sol et parking</span></li>
-      </ul>
-
-      <div class="contact-band">
-        <div class="contact-left">
-          <a class="contact-pill" href="mailto:contact@ideogroupe.fr"><span class="dot"></span>contact@ideogroupe.fr</a>
-          <a class="contact-pill" href="tel:+330188247111"><span class="dot"></span>+33 01 88 24 71 11</a>
+  <div class="pair-body">
+    <div class="pair-row">
+      <div class="photo-col">
+        <div class="photo-col-label">
+          <span class="photo-pill avant">Avant</span>
         </div>
-        <div class="contact-right">
-          <span class="social-title">Reseaux</span>
-          <a class="social-pill" href="https://ideogroupe.fr/" target="_blank" rel="noopener noreferrer">WEB</a>
-          <a class="social-pill" href="https://fr.linkedin.com/company/ideogroupe" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <div class="photo-frame">
+          <img src="{{.BeforeURL}}" alt="Avant {{.Index}}" loading="eager" decoding="sync"
+               onerror="this.style.background='#d6e3ee'" />
         </div>
       </div>
-    </footer>
+      <div class="photo-col">
+        <div class="photo-col-label">
+          <span class="photo-pill apres">Après</span>
+        </div>
+        <div class="photo-frame">
+          <img src="{{.AfterURL}}" alt="Après {{.Index}}" loading="eager" decoding="sync"
+               onerror="this.style.background='#d6e3ee'" />
+        </div>
+      </div>
+    </div>
+    <div class="pair-foot">
+      {{if and $.IncludeDates .Date}}
+      <span class="pair-date-tag">{{.Date}}</span>
+      {{else}}
+      <span></span>
+      {{end}}
+      {{if .Caption}}<span class="pair-caption">{{.Caption}}</span>{{end}}
+    </div>
+  </div>
+</div>
+{{end}}
 
-  </main>
+{{range .Trucks}}
+<div class="pdf-page">
+  <div class="page-strip">
+    <div class="strip-left">
+      {{if $.HeaderLogoURL}}<img class="strip-logo" src="{{$.HeaderLogoURL}}" alt="Logo" loading="eager" decoding="sync" />{{end}}
+      <div class="strip-sep"></div>
+      <div>
+        <div class="strip-title">{{$.InterventionName}}</div>
+        <div class="strip-sub">Photos camions</div>
+      </div>
+    </div>
+    <span class="strip-badge">Camion {{.Index}} / {{len $.Trucks}}</span>
+  </div>
+  <div class="single-body">
+    {{if and $.IncludeDates .Date}}
+    <div class="single-date"><span class="pair-date-tag">{{.Date}}</span></div>
+    {{end}}
+    <div class="single-frame">
+      <img src="{{.URL}}" alt="Camion {{.Index}}" loading="eager" decoding="sync"
+           onerror="this.style.background='#d6e3ee'" />
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{range .Evidences}}
+<div class="pdf-page">
+  <div class="page-strip">
+    <div class="strip-left">
+      {{if $.HeaderLogoURL}}<img class="strip-logo" src="{{$.HeaderLogoURL}}" alt="Logo" loading="eager" decoding="sync" />{{end}}
+      <div class="strip-sep"></div>
+      <div>
+        <div class="strip-title">{{$.InterventionName}}</div>
+        <div class="strip-sub">Photos preuves</div>
+      </div>
+    </div>
+    <span class="strip-badge">Preuve {{.Index}} / {{len $.Evidences}}</span>
+  </div>
+  <div class="single-body">
+    {{if and $.IncludeDates .Date}}
+    <div class="single-date"><span class="pair-date-tag">{{.Date}}</span></div>
+    {{end}}
+    <div class="single-frame">
+      <img src="{{.URL}}" alt="Preuve {{.Index}}" loading="eager" decoding="sync"
+           onerror="this.style.background='#d6e3ee'" />
+    </div>
+  </div>
+</div>
+{{end}}
+
+<div class="pdf-page">
+  <div class="footer-body">
+    <div class="footer-heading">
+      <h2>Couverture de services</h2>
+      <p>Services opérés par IDEO Groupe — Édition entreprise</p>
+    </div>
+    <p class="section-label">Nos prestations</p>
+    <ul class="services-grid">
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-gestion-benne.png" alt="Gestion des bennes" />
+        <span class="service-label">Gestion des bennes</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage.png" alt="Nettoyage de chantier" />
+        <span class="service-label">Nettoyage de chantier</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/videosurveillance.png" alt="Vidéo-surveillance" />
+        <span class="service-label">Vidéo-surveillance</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-deblayage.png" alt="Déblayage urgent" />
+        <span class="service-label">Déblayage urgent</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/07/service-nettoyage-chaussee.png" alt="Nettoyage de chaussée" />
+        <span class="service-label">Nettoyage de chaussée</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/10/nettoyagedescantonnements.png" alt="Nettoyage de cantonnements" />
+        <span class="service-label">Nettoyage de cantonnements</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-livraisonfinale.png" alt="Nettoyage avant livraison" />
+        <span class="service-label">Nettoyage avant livraison</span>
+      </li>
+      <li class="service-item">
+        <img class="service-img" loading="eager" decoding="sync" src="https://ideogroupe.fr/wp-content/uploads/2020/11/Service-nettoyage.png" alt="Sous-sol et parking" />
+        <span class="service-label">Sous-sol et parking</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="footer-contact">
+    <div class="contact-group">
+      <a class="contact-link" href="mailto:contact@ideogroupe.fr">
+        <span class="cdot"></span>contact@ideogroupe.fr
+      </a>
+      <a class="contact-link" href="tel:+330188247111">
+        <span class="cdot"></span>+33 01 88 24 71 11
+      </a>
+    </div>
+    <div class="social-group">
+      <a class="social-link" href="https://ideogroupe.fr/" target="_blank" rel="noopener">WEB</a>
+      <a class="social-link" href="https://fr.linkedin.com/company/ideogroupe" target="_blank" rel="noopener">LinkedIn</a>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
