@@ -74,6 +74,7 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		Status:    "ready",
 		HTMLURL:   htmlURL,
 		CreatedAt: time.Now(),
+		Payload:   body,
 	}
 
 	saved, saveErr := h.store.Save(r.Context(), job)

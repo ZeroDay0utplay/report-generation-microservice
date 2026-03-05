@@ -136,6 +136,10 @@ func main() {
 		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
 	)
 
+	r.Get("/v1/reports/{id}/html",
+		handlers.NewReportHTMLHandler(logger, store, cfg.LogoURL).ServeHTTP,
+	)
+
 	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
 		Post("/v1/pdf",
 			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
