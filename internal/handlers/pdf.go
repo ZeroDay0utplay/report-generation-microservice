@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"pdf-html-service/internal/gotenberg"
+	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
 	"pdf-html-service/internal/render"
 	"pdf-html-service/internal/security"
@@ -19,6 +21,7 @@ import (
 
 type PDFHandler struct {
 	baseHandler
+	store           jobstore.Store
 	storage         Storage
 	renderer        PDFRenderer
 	outputPrefix    string
@@ -30,18 +33,22 @@ func NewPDFHandler(
 	logger *slog.Logger,
 	validate *validator.Validate,
 	urlPolicy *security.URLPolicy,
+	store jobstore.Store,
 	storage Storage,
 	renderer PDFRenderer,
 	maxPairs int,
 	outputPrefix string,
 	uploadHTMLOnPDF bool,
+	logoURL string,
 ) *PDFHandler {
 	return &PDFHandler{
 		baseHandler:     baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
+		store:           store,
 		storage:         storage,
 		renderer:        renderer,
 		outputPrefix:    outputPrefix,
 		uploadHTMLOnPDF: uploadHTMLOnPDF,
+		logoURL:         logoURL,
 	}
 }
 
@@ -51,11 +58,30 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("route", r.URL.Path),
 	}
 
-	var payload models.ReportRequest
-	if ok := decodeJSONBody(w, r, &payload); !ok {
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(body) == 0 {
 		h.logger.Warn("pdf request rejected",
 			append(baseLogAttrs, slog.String("errorCode", "INVALID_JSON"))...,
 		)
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "request body is required", nil)
+		return
+	}
+
+	jobID := util.JobIDFromPayload(body)
+
+	if existing, err := h.store.GetJob(r.Context(), jobID); err == nil && existing.PDFURL != "" {
+		h.logger.Info("pdf: returning cached job", append(baseLogAttrs, slog.String("jobId", jobID))...)
+		writeJSON(w, http.StatusOK, models.PDFResponse{
+			RequestID: requestID(r),
+			JobID:     existing.ID,
+			PDFURL:    existing.PDFURL,
+		})
+		return
+	}
+
+	var payload models.ReportRequest
+	if err := json.Unmarshal(body, &payload); err != nil {
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "invalid JSON payload", nil)
 		return
 	}
 
@@ -103,8 +129,6 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusBadRequest, "URL_POLICY_ERROR", "URL policy validation failed", nil)
 		return
 	}
-
-	jobID := util.NewJobID()
 
 	htmlStart := time.Now()
 	htmlDoc, err := render.RenderHTMLWithLogo(payload, h.logoURL)
@@ -190,6 +214,15 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	uploadMS := time.Since(uploadStart).Milliseconds()
 
+	pdfURL := h.storage.PublicURL(pdfKey)
+
+	h.store.Save(r.Context(), jobstore.Job{ //nolint:errcheck
+		ID:        jobID,
+		Status:    "ready",
+		PDFURL:    pdfURL,
+		CreatedAt: time.Now(),
+	})
+
 	h.logger.Info("pdf report generated",
 		append(requestLogAttrs,
 			slog.String("jobId", jobID),
@@ -203,7 +236,7 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RequestID: requestID(r),
 		JobID:     jobID,
 		PDFKey:    pdfKey,
-		PDFURL:    h.storage.PublicURL(pdfKey),
+		PDFURL:    pdfURL,
 		Debug:     debug,
 	})
 }

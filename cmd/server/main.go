@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 
 	"pdf-html-service/internal/config"
@@ -97,7 +98,25 @@ func main() {
 	pdfRenderer := gotenberg.NewClient(cfg.GotenbergURL, sharedHTTPClient)
 	validate := validator.New()
 	urlPolicy := security.NewURLPolicy(cfg.RequireHTTPS, cfg.ImageHostAllowlist)
-	store := jobstore.NewMemoryStore()
+
+	var store jobstore.Store
+	if cfg.RedisURL != "" {
+		redisOpts, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			logger.Error("invalid REDIS_URL", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		redisClient := redis.NewClient(redisOpts)
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			logger.Error("redis unreachable", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		store = jobstore.NewRedisStore(redisClient)
+		logger.Info("using redis store", slog.String("url", cfg.RedisURL))
+	} else {
+		store = jobstore.NewMemoryStore()
+		logger.Info("using memory store")
+	}
 
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
@@ -117,17 +136,9 @@ func main() {
 		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
 	)
 
-	r.Get("/v1/reports/{id}/pdf",
-		handlers.NewReportPDFHandler(logger, store, pdfRenderer, cfg.LogoURL).ServeHTTP,
-	)
-
-	r.Get("/v1/reports/{id}/html",
-		handlers.NewReportHTMLHandler(logger, store, cfg.LogoURL).ServeHTTP,
-	)
-
 	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
 		Post("/v1/pdf",
-			handlers.NewPDFHandler(logger, validate, urlPolicy, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF).ServeHTTP,
+			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
 		)
 
 	srv := &http.Server{

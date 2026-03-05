@@ -25,6 +25,7 @@ type Config struct {
 	LogLevel           string
 	LogoURL            string
 	PublicBaseURL      string
+	RedisURL           string
 }
 
 func Load() (Config, error) {
@@ -46,6 +47,7 @@ func Load() (Config, error) {
 		LogLevel:           strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		LogoURL:            getEnv("LOGO_URL", "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
+		RedisURL:           getEnv("REDIS_URL", ""),
 	}
 
 	if cfg.MaxPairs <= 0 {

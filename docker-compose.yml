@@ -2,6 +2,9 @@ networks:
   internal:
     driver: bridge
 
+volumes:
+  redis_data:
+
 services:
   gotenberg:
     image: gotenberg/gotenberg:8
@@ -14,6 +17,22 @@ services:
     ports:
       - "8090:8090"
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+
   orchestrator:
     build:
       context: .
@@ -23,6 +42,7 @@ services:
       - internal
     depends_on:
       - gotenberg
+      - redis
     ports:
       - "4000:4000"
     env_file:
@@ -30,3 +50,4 @@ services:
     environment:
       GOTENBERG_URL: http://gotenberg:8090
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      REDIS_URL: redis://redis:6379/0

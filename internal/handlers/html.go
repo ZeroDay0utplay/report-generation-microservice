@@ -47,7 +47,7 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	payload, reqAttrs, ok := h.validateReportPayload(w, r, body)
+	_, reqAttrs, ok := h.validateReportPayload(w, r, body)
 	if !ok {
 		return
 	}
@@ -76,7 +76,7 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		CreatedAt: time.Now(),
 	}
 
-	saved, saveErr := h.store.Save(r.Context(), job, *payload)
+	saved, saveErr := h.store.Save(r.Context(), job)
 	if saveErr != nil {
 		h.logger.Error("failed to save job",
 			append(reqAttrs,
