@@ -20,10 +20,10 @@
       "name": "Health",
       "item": [
         {
-          "name": "GET /healthz",
+          "name": "GET /health",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/healthz"
+            "url": "{{base_url}}/health"
           }
         }
       ]
@@ -73,43 +73,6 @@
             "method": "GET",
             "url": "{{base_url}}/v1/reports/{{job_id}}"
           }
-        },
-        {
-          "name": "GET /v1/reports/:id/html – Render HTML (SSR)",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Accept-Encoding", "value": "gzip" }
-            ],
-            "url": "{{base_url}}/v1/reports/{{job_id}}/html"
-          }
-        },
-        {
-          "name": "GET /v1/reports/:id/html – ETag cache hit (304)",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "If-None-Match", "value": "\"{{job_id}}\"" }
-            ],
-            "url": "{{base_url}}/v1/reports/{{job_id}}/html"
-          }
-        },
-        {
-          "name": "GET /v1/reports/:id/pdf – Download PDF (streaming)",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/v1/reports/{{job_id}}/pdf"
-          }
-        },
-        {
-          "name": "GET /v1/reports/:id/pdf – ETag cache hit (304)",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "If-None-Match", "value": "\"pdf-{{job_id}}\"" }
-            ],
-            "url": "{{base_url}}/v1/reports/{{job_id}}/pdf"
-          }
         }
       ]
     },
@@ -150,13 +113,6 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/reports/job_doesnotexist"
-          }
-        },
-        {
-          "name": "GET /v1/reports/:id/html – HTML not found (404)",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/v1/reports/job_doesnotexist/html"
           }
         }
       ]
