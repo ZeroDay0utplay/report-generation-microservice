@@ -2,6 +2,7 @@ package jobstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -9,11 +10,12 @@ import (
 var ErrNotFound = errors.New("job not found")
 
 type Job struct {
-	ID        string    `json:"jobId"`
-	Status    string    `json:"status"`
-	HTMLURL   string    `json:"htmlUrl,omitempty"`
-	PDFURL    string    `json:"pdfUrl,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        string          `json:"jobId"`
+	Status    string          `json:"status"`
+	HTMLURL   string          `json:"htmlUrl,omitempty"`
+	PDFURL    string          `json:"pdfUrl,omitempty"`
+	CreatedAt time.Time       `json:"createdAt"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
 }
 
 type Store interface {
