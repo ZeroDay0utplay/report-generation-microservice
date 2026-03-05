@@ -164,21 +164,32 @@ func TestReportHTMLSSR(t *testing.T) {
 func TestReportHTMLEtag(t *testing.T) {
 	store := jobstore.NewMemoryStore()
 	payload := samplePayload()
-	job := jobstore.Job{ID: "job_test123", Status: "ready", HTMLURL: "/v1/reports/job_test123/html"}
-	store.Save(context.Background(), job, payload)
+	rawPayload, _ := json.Marshal(payload)
+	job := jobstore.Job{ID: "job_test123", Status: "ready", HTMLURL: "/v1/reports/job_test123/html", Payload: rawPayload}
+	store.Save(context.Background(), job)
 
 	handler := NewReportHTMLHandler(testLogger(), store, "")
 
 	r := chi.NewRouter()
 	r.Get("/v1/reports/{id}/html", handler.ServeHTTP)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/reports/job_test123/html", nil)
-	req.Header.Set("If-None-Match", `"job_test123"`)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
+	// First request: get the ETag from the response.
+	req1 := httptest.NewRequest(http.MethodGet, "/v1/reports/job_test123/html", nil)
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+	etag := rr1.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag header in first response")
+	}
 
-	if rr.Code != http.StatusNotModified {
-		t.Fatalf("expected 304 for matching ETag, got %d", rr.Code)
+	// Second request: send the ETag back — expect 304.
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/reports/job_test123/html", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Fatalf("expected 304 for matching ETag, got %d", rr2.Code)
 	}
 }
 

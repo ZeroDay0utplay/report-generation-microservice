@@ -1,32 +1,27 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/hibiken/asynq"
 
-	"pdf-html-service/internal/gotenberg"
 	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
-	"pdf-html-service/internal/render"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/util"
+	"pdf-html-service/internal/worker"
 )
 
 type PDFHandler struct {
 	baseHandler
-	store           jobstore.Store
-	storage         Storage
-	renderer        PDFRenderer
-	outputPrefix    string
-	uploadHTMLOnPDF bool
-	logoURL         string
+	store        jobstore.Store
+	asynqClient  *asynq.Client
+	outputPrefix string
+	logoURL      string
 }
 
 func NewPDFHandler(
@@ -34,21 +29,17 @@ func NewPDFHandler(
 	validate *validator.Validate,
 	urlPolicy *security.URLPolicy,
 	store jobstore.Store,
-	storage Storage,
-	renderer PDFRenderer,
+	asynqClient *asynq.Client,
 	maxPairs int,
 	outputPrefix string,
-	uploadHTMLOnPDF bool,
 	logoURL string,
 ) *PDFHandler {
 	return &PDFHandler{
-		baseHandler:     baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
-		store:           store,
-		storage:         storage,
-		renderer:        renderer,
-		outputPrefix:    outputPrefix,
-		uploadHTMLOnPDF: uploadHTMLOnPDF,
-		logoURL:         logoURL,
+		baseHandler:  baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
+		store:        store,
+		asynqClient:  asynqClient,
+		outputPrefix: outputPrefix,
+		logoURL:      logoURL,
 	}
 }
 
@@ -69,174 +60,59 @@ func (h *PDFHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	jobID := util.JobIDFromPayload(body)
 
-	if existing, err := h.store.GetJob(r.Context(), jobID); err == nil && existing.PDFURL != "" {
-		h.logger.Info("pdf: returning cached job", append(baseLogAttrs, slog.String("jobId", jobID))...)
-		writeJSON(w, http.StatusOK, models.PDFResponse{
+	// Idempotency: if a job already exists for this payload, return its status.
+	if existing, err := h.store.GetJob(r.Context(), jobID); err == nil {
+		writeJSON(w, http.StatusAccepted, models.AsyncPDFResponse{
 			RequestID: requestID(r),
 			JobID:     existing.ID,
-			PDFURL:    existing.PDFURL,
+			Status:    existing.Status,
 		})
 		return
 	}
 
-	var payload models.ReportRequest
-	if err := json.Unmarshal(body, &payload); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "invalid JSON payload", nil)
+	payload, _, ok := h.validateReportPayload(w, r, body)
+	if !ok {
 		return
 	}
 
-	requestLogAttrs := append(baseLogAttrs,
-		slog.String("invoiceNumber", models.StringOrEmpty(payload.InvoiceNumber)),
-		slog.Int("pairsCount", len(payload.Pairs)),
-	)
-
-	if len(payload.Pairs) > h.maxPairs {
-		h.logger.Warn("pdf request rejected: pairs exceeds limit",
-			append(requestLogAttrs,
-				slog.String("errorCode", "TOO_MANY_PAIRS"),
-				slog.Int("maxPairs", h.maxPairs),
-			)...,
-		)
-		writeError(w, r, http.StatusRequestEntityTooLarge, "TOO_MANY_PAIRS",
-			"pairs exceeds configured limit", map[string]any{"maxPairs": h.maxPairs})
-		return
-	}
-
-	if err := h.validate.Struct(payload); err != nil {
-		var ve validator.ValidationErrors
-		if errors.As(err, &ve) {
-			h.logger.Warn("pdf request rejected: validation failed",
-				append(requestLogAttrs, slog.String("errorCode", "VALIDATION_ERROR"))...)
-			writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR",
-				"payload validation failed", validationDetails(ve))
-			return
-		}
-		h.logger.Error("unexpected validator error",
-			append(requestLogAttrs, slog.String("error", err.Error()))...)
-		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "payload validation failed", nil)
-		return
-	}
-
-	if err := h.urlPolicy.ValidatePayload(payload); err != nil {
-		var ve *security.ValidationError
-		if errors.As(err, &ve) {
-			h.logger.Warn("pdf request rejected: url policy failed",
-				append(requestLogAttrs, slog.String("errorCode", "URL_POLICY_ERROR"))...)
-			writeError(w, r, http.StatusBadRequest, "URL_POLICY_ERROR",
-				"URL policy validation failed", ve.Violations)
-			return
-		}
-		writeError(w, r, http.StatusBadRequest, "URL_POLICY_ERROR", "URL policy validation failed", nil)
-		return
-	}
-
-	htmlStart := time.Now()
-	htmlDoc, err := render.RenderPDFHTMLWithLogo(payload, h.logoURL)
-	htmlGenMS := time.Since(htmlStart).Milliseconds()
+	task, err := worker.NewPDFGenerateTask(jobID, body)
 	if err != nil {
-		h.logger.Error("failed to render html for pdf",
-			append(requestLogAttrs,
-				slog.String("jobId", jobID),
-				slog.String("error", err.Error()),
-			)...,
+		h.logger.Error("failed to build pdf task",
+			append(baseLogAttrs, slog.String("jobId", jobID), slog.String("error", err.Error()))...,
 		)
-		writeError(w, r, http.StatusInternalServerError, "RENDER_ERROR", "failed to render HTML", nil)
+		writeError(w, r, http.StatusInternalServerError, "QUEUE_ERROR", "failed to enqueue job", nil)
 		return
 	}
 
-	var debug *models.PDFDebug
-	if h.uploadHTMLOnPDF {
-		htmlKey := htmlObjectKey(h.outputPrefix, jobID)
-		if err := h.storage.UploadHTML(r.Context(), htmlKey, htmlDoc); err != nil {
-			h.logger.Error("failed to upload debug html",
-				append(requestLogAttrs,
-					slog.String("jobId", jobID),
-					slog.String("error", err.Error()),
-				)...,
-			)
-			writeError(w, r, http.StatusInternalServerError, "UPLOAD_ERROR", "failed to upload debug HTML", nil)
-			return
-		}
-		debug = &models.PDFDebug{HTMLKey: htmlKey, HTMLURL: h.storage.PublicURL(htmlKey)}
-	}
-
-	gotenbergStart := time.Now()
-	pdfReader, err := h.renderer.ConvertHTMLToPDF(r.Context(), htmlDoc)
-	gotenbergMS := time.Since(gotenbergStart).Milliseconds()
-	if err != nil {
-		var ge *gotenberg.ConvertError
-		if errors.As(err, &ge) {
-			h.logger.Error("pdf conversion failed",
-				append(requestLogAttrs,
-					slog.String("jobId", jobID),
-					slog.Int("gotenbergStatus", ge.Status),
-					slog.String("bodySnippet", ge.BodySnippet),
-				)...,
-			)
-			writeError(w, r, http.StatusInternalServerError, "GOTENBERG_ERROR", "PDF conversion failed",
-				map[string]any{"status": ge.Status, "bodySnippet": ge.BodySnippet})
-			return
-		}
-		h.logger.Error("pdf conversion failed",
-			append(requestLogAttrs,
-				slog.String("jobId", jobID),
-				slog.String("error", err.Error()),
-			)...,
+	if _, err := h.asynqClient.EnqueueContext(r.Context(), task); err != nil {
+		h.logger.Error("failed to enqueue pdf task",
+			append(baseLogAttrs, slog.String("jobId", jobID), slog.String("error", err.Error()))...,
 		)
-		writeError(w, r, http.StatusInternalServerError, "GOTENBERG_ERROR", "PDF conversion failed", nil)
-		return
-	}
-	defer pdfReader.Close()
-
-	pdfBytes, err := io.ReadAll(pdfReader)
-	if err != nil {
-		h.logger.Error("failed to read pdf response",
-			append(requestLogAttrs,
-				slog.String("jobId", jobID),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusInternalServerError, "PDF_ERROR", "failed to read PDF", nil)
+		writeError(w, r, http.StatusInternalServerError, "QUEUE_ERROR", "failed to enqueue job", nil)
 		return
 	}
 
-	pdfKey := pdfObjectKey(h.outputPrefix, jobID)
-	uploadStart := time.Now()
-	if err := h.storage.UploadPDF(r.Context(), pdfKey, bytes.NewReader(pdfBytes)); err != nil {
-		h.logger.Error("failed to upload pdf",
-			append(requestLogAttrs,
-				slog.String("jobId", jobID),
-				slog.String("error", err.Error()),
-			)...,
-		)
-		writeError(w, r, http.StatusInternalServerError, "UPLOAD_ERROR", "failed to upload PDF", nil)
-		return
-	}
-	uploadMS := time.Since(uploadStart).Milliseconds()
-
-	pdfURL := h.storage.PublicURL(pdfKey)
-
-	h.store.Save(r.Context(), jobstore.Job{ //nolint:errcheck
+	if err := h.store.Update(r.Context(), jobstore.Job{
 		ID:        jobID,
-		Status:    "ready",
-		PDFURL:    pdfURL,
+		Status:    "queued",
+		Payload:   body,
 		CreatedAt: time.Now(),
-	})
+	}); err != nil {
+		h.logger.Warn("failed to persist queued job",
+			append(baseLogAttrs, slog.String("jobId", jobID), slog.String("error", err.Error()))...,
+		)
+	}
 
-	h.logger.Info("pdf report generated",
-		append(requestLogAttrs,
+	h.logger.Info("pdf job enqueued",
+		append(baseLogAttrs,
 			slog.String("jobId", jobID),
-			slog.Int64("html_gen_ms", htmlGenMS),
-			slog.Int64("gotenberg_ms", gotenbergMS),
-			slog.Int64("upload_ms", uploadMS),
+			slog.Int("pairsCount", len(payload.Pairs)),
 		)...,
 	)
 
-	writeJSON(w, http.StatusOK, models.PDFResponse{
+	writeJSON(w, http.StatusAccepted, models.AsyncPDFResponse{
 		RequestID: requestID(r),
 		JobID:     jobID,
-		PDFKey:    pdfKey,
-		PDFURL:    pdfURL,
-		Debug:     debug,
+		Status:    "queued",
 	})
 }

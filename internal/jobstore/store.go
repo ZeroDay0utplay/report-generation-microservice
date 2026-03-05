@@ -16,9 +16,11 @@ type Job struct {
 	PDFURL    string          `json:"pdfUrl,omitempty"`
 	CreatedAt time.Time       `json:"createdAt"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
+	Error     string          `json:"error,omitempty"`
 }
 
 type Store interface {
 	Save(ctx context.Context, job Job) (Job, error)
+	Update(ctx context.Context, job Job) error
 	GetJob(ctx context.Context, jobID string) (Job, error)
 }

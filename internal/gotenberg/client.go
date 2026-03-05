@@ -12,7 +12,8 @@ import (
 
 const (
 	convertPath     = "/forms/chromium/convert/html"
-	maxErrorSnippet = 4 * 1024
+	mergePath        = "/forms/pdfengines/merge"
+	maxErrorSnippet  = 4 * 1024
 )
 
 type Client struct {
@@ -57,6 +58,7 @@ func (c *Client) ConvertHTMLToPDF(ctx context.Context, html string) (io.ReadClos
 		return nil, fmt.Errorf("build gotenberg request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Gotenberg-Api-Timeout", "90")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -126,5 +128,45 @@ func (c *Client) ConvertHTMLReaderToPDF(ctx context.Context, htmlReader io.Reade
 		return nil, &ConvertError{Status: resp.StatusCode, BodySnippet: string(snippet)}
 	}
 
+	return resp.Body, nil
+}
+
+// MergePDFs sends multiple PDF bytes to Gotenberg's merge endpoint.
+// Files are named 0001.pdf, 0002.pdf, … so Gotenberg preserves order.
+func (c *Client) MergePDFs(ctx context.Context, chunks [][]byte) (io.ReadCloser, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	for i, chunk := range chunks {
+		filename := fmt.Sprintf("%04d.pdf", i+1)
+		part, err := writer.CreateFormFile("files", filename)
+		if err != nil {
+			return nil, fmt.Errorf("create merge file %s: %w", filename, err)
+		}
+		if _, err := part.Write(chunk); err != nil {
+			return nil, fmt.Errorf("write merge file %s: %w", filename, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close merge multipart: %w", err)
+	}
+
+	endpoint := c.baseURL + mergePath
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	if err != nil {
+		return nil, fmt.Errorf("build merge request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Gotenberg-Api-Timeout", "120")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call gotenberg merge: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorSnippet))
+		return nil, &ConvertError{Status: resp.StatusCode, BodySnippet: string(snippet)}
+	}
 	return resp.Body, nil
 }

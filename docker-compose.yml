@@ -14,8 +14,16 @@ services:
     command:
       - gotenberg
       - --api-port=8090
+      - --api-timeout=120s
+      - --chromium-restart-after=10
+      - --chromium-max-queue-size=10
     ports:
       - "8090:8090"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2"
 
   redis:
     image: redis:7-alpine

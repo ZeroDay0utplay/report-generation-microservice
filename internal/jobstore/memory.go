@@ -39,3 +39,9 @@ func (s *MemoryStore) GetJob(_ context.Context, jobID string) (Job, error) {
 	}
 	return e.job, nil
 }
+func (s *MemoryStore) Update(_ context.Context, job Job) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries[job.ID] = entry{job: job}
+	return nil
+}

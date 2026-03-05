@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -97,4 +98,17 @@ func (s *B2Storage) UploadReader(ctx context.Context, key, contentType, cacheCon
 
 func (s *B2Storage) PublicURL(key string) string {
 	return s.publicBaseURL + "/" + strings.TrimLeft(key, "/")
+}
+
+// PresignGetURL returns a presigned GET URL for the given key, valid for ttl.
+func (s *B2Storage) PresignGetURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	presigner := s3.NewPresignClient(s.client)
+	result, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(strings.TrimLeft(key, "/")),
+	}, s3.WithPresignExpires(ttl))
+	if err != nil {
+		return "", fmt.Errorf("presign get object %q: %w", key, err)
+	}
+	return result.URL, nil
 }

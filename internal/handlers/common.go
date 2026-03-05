@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 
@@ -21,6 +22,7 @@ type Storage interface {
 	UploadHTML(ctx context.Context, key string, html string) error
 	UploadPDF(ctx context.Context, key string, reader io.Reader) error
 	PublicURL(key string) string
+	PresignGetURL(ctx context.Context, key string, ttl time.Duration) (string, error)
 }
 
 type PDFRenderer interface {

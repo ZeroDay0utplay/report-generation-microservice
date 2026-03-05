@@ -1,6 +1,11 @@
 package models
 
 // ReportRequest is the shared request schema for both /v1/html and /v1/pdf.
+type Callback struct {
+	WebhookURL string `json:"webhookUrl,omitempty"`
+	Email      string `json:"email,omitempty" validate:"omitempty,email"`
+}
+
 type ReportRequest struct {
 	InvoiceNumber    *string `json:"invoiceNumber" validate:"omitempty,max=200"`
 	InterventionName string  `json:"interventionName" validate:"required,max=200"`
@@ -11,8 +16,9 @@ type ReportRequest struct {
 	IncludeDate      *bool   `json:"includeDate,omitempty"`
 	PhotoLayout      string  `json:"photoLayout,omitempty" validate:"omitempty,max=50"`
 	Pairs            []Pair  `json:"pairs" validate:"required,min=1,dive"`
-	Trucks           []Photo `json:"trucks,omitempty" validate:"omitempty,dive"`
-	Evidences        []Photo `json:"evidences,omitempty" validate:"omitempty,dive"`
+	Trucks           []Photo   `json:"trucks,omitempty" validate:"omitempty,dive"`
+	Evidences        []Photo   `json:"evidences,omitempty" validate:"omitempty,dive"`
+	Callback         *Callback `json:"callback,omitempty" validate:"omitempty"`
 }
 
 type Company struct {
@@ -78,4 +84,18 @@ type ReportSubmitResponse struct {
 	JobID     string `json:"jobId"`
 	Status    string `json:"status"`
 	HTMLURL   string `json:"htmlUrl"`
+}
+
+type AsyncPDFResponse struct {
+	RequestID string `json:"requestId"`
+	JobID     string `json:"jobId"`
+	Status    string `json:"status"`
+}
+
+type PDFStatusResponse struct {
+	RequestID   string `json:"requestId,omitempty"`
+	JobID       string `json:"jobId"`
+	Status      string `json:"status"`
+	DownloadURL string `json:"downloadUrl,omitempty"`
+	Error       string `json:"error,omitempty"`
 }

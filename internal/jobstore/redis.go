@@ -56,3 +56,10 @@ func (s *RedisStore) GetJob(ctx context.Context, jobID string) (Job, error) {
 	}
 	return job, nil
 }
+func (s *RedisStore) Update(ctx context.Context, job Job) error {
+	data, err := json.Marshal(job)
+	if err != nil {
+		return err
+	}
+	return s.client.Set(ctx, "job:"+job.ID, data, jobTTL).Err()
+}

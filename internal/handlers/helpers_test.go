@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
@@ -52,6 +53,10 @@ func (m *mockStorage) UploadPDF(_ context.Context, key string, reader io.Reader)
 
 func (m *mockStorage) PublicURL(key string) string {
 	return "https://public.example.com/" + key
+}
+
+func (m *mockStorage) PresignGetURL(_ context.Context, key string, _ time.Duration) (string, error) {
+	return "https://presign.example.com/" + key, nil
 }
 
 type mockRenderer struct {
@@ -121,6 +126,13 @@ func (m *mockStore) Save(_ context.Context, job jobstore.Job) (jobstore.Job, err
 	}
 	m.entries[job.ID] = job
 	return job, nil
+}
+
+func (m *mockStore) Update(_ context.Context, job jobstore.Job) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.entries[job.ID] = job
+	return nil
 }
 
 func (m *mockStore) GetJob(_ context.Context, jobID string) (jobstore.Job, error) {

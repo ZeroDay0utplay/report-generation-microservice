@@ -26,6 +26,18 @@ type Config struct {
 	LogoURL            string
 	PublicBaseURL      string
 	RedisURL           string
+	// PDF chunking & async
+	PDFChunkSize         int
+	GotenbergConcurrency int
+	ChunkTimeoutSec      int
+	MergeTimeoutSec      int
+	DownloadURLTTLHours  int
+	// SMTP
+	SMTPHost string
+	SMTPPort int
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
 }
 
 func Load() (Config, error) {
@@ -48,6 +60,16 @@ func Load() (Config, error) {
 		LogoURL:            getEnv("LOGO_URL", "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
 		RedisURL:           getEnv("REDIS_URL", ""),
+		PDFChunkSize:         getEnvInt("PDF_CHUNK_SIZE", 50),
+		GotenbergConcurrency: getEnvInt("GOTENBERG_CONCURRENCY", 4),
+		ChunkTimeoutSec:      getEnvInt("CHUNK_TIMEOUT_SEC", 90),
+		MergeTimeoutSec:      getEnvInt("MERGE_TIMEOUT_SEC", 120),
+		DownloadURLTTLHours:  getEnvInt("DOWNLOAD_URL_TTL_HOURS", 24),
+		SMTPHost:             getEnv("SMTP_HOST", ""),
+		SMTPPort:             getEnvInt("SMTP_PORT", 587),
+		SMTPUser:             getEnv("SMTP_USER", ""),
+		SMTPPass:             getEnv("SMTP_PASS", ""),
+		SMTPFrom:             getEnv("SMTP_FROM", ""),
 	}
 
 	if cfg.MaxPairs <= 0 {

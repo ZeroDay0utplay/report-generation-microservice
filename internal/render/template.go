@@ -54,8 +54,10 @@ type templateData struct {
 	PairsJSON         template.JS
 	PairGridClassJSON template.JS
 	IncludeDatesJS    template.JS
-	Trucks    []photoView
-	Evidences []photoView
+	Trucks     []photoView
+	Evidences  []photoView
+	ShowCover  bool
+	ShowFooter bool
 }
 
 var (
@@ -276,6 +278,13 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 }
 
 func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
+	return RenderPDFChunk(payload, logoURL, true, true)
+}
+
+// RenderPDFChunk renders the PDF template for one chunk.
+// showCover=true renders the cover page (first chunk).
+// showFooter=true renders trucks, evidences, and the services footer (last chunk).
+func RenderPDFChunk(payload models.ReportRequest, logoURL string, showCover, showFooter bool) (string, error) {
 	t, styles, err := loadPDFBundle()
 	if err != nil {
 		return "", err
@@ -285,6 +294,8 @@ func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string
 	if err != nil {
 		return "", err
 	}
+	data.ShowCover = showCover
+	data.ShowFooter = showFooter
 
 	buf := bufPool.Get().(*bytes.Buffer)
 	buf.Reset()
