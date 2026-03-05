@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
 )
 
@@ -101,6 +102,34 @@ func samplePayload() models.ReportRequest {
 			},
 		},
 	}
+}
+
+type mockStore struct {
+	mu      sync.RWMutex
+	entries map[string]jobstore.Job
+}
+
+func newMockStore() *mockStore {
+	return &mockStore{entries: make(map[string]jobstore.Job)}
+}
+
+func (m *mockStore) Save(_ context.Context, job jobstore.Job) (jobstore.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.entries[job.ID]; ok {
+		return existing, nil
+	}
+	m.entries[job.ID] = job
+	return job, nil
+}
+
+func (m *mockStore) GetJob(_ context.Context, jobID string) (jobstore.Job, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if job, ok := m.entries[jobID]; ok {
+		return job, nil
+	}
+	return jobstore.Job{}, jobstore.ErrNotFound
 }
 
 func testLogger() *slog.Logger {
