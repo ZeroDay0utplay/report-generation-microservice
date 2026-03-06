@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,6 +22,8 @@ import (
 	"pdf-html-service/internal/handlers"
 	"pdf-html-service/internal/jobstore"
 	appmiddleware "pdf-html-service/internal/middleware"
+	"pdf-html-service/internal/notify"
+	"pdf-html-service/internal/pipeline"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/storage"
 )
@@ -36,10 +39,8 @@ const (
 	httpIdleConnTimeout     = 90 * time.Second
 	shutdownTimeout         = 10 * time.Second
 
-	reportSubmitRPS   = 20
-	reportSubmitBurst = 30
-	pdfRPS            = 5
-	pdfBurst          = 8
+	reportRPS   = 20
+	reportBurst = 30
 )
 
 func main() {
@@ -56,13 +57,12 @@ func main() {
 		slog.Int("maxPairs", cfg.MaxPairs),
 		slog.Int("requestBodyLimitMB", cfg.RequestBodyLimitMB),
 		slog.Bool("requireHTTPS", cfg.RequireHTTPS),
-		slog.Bool("uploadHTMLOnPDF", cfg.UploadHTMLOnPDF),
 		slog.String("outputPrefix", cfg.OutputPrefix),
 		slog.String("logLevel", cfg.LogLevel),
 		slog.String("gotenbergURL", cfg.GotenbergURL),
 		slog.String("b2Endpoint", cfg.B2Endpoint),
 		slog.String("b2Bucket", cfg.B2Bucket),
-		slog.String("publicBaseURL", cfg.PublicBaseURL),
+		slog.Int("syncTimeoutSec", cfg.SyncTimeoutSec),
 	)
 
 	sharedHTTPClient := &http.Client{
@@ -98,6 +98,7 @@ func main() {
 	pdfRenderer := gotenberg.NewClient(cfg.GotenbergURL, sharedHTTPClient)
 	validate := validator.New()
 	urlPolicy := security.NewURLPolicy(cfg.RequireHTTPS, cfg.ImageHostAllowlist)
+	mailer := notify.NewSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
 
 	var store jobstore.Store
 	if cfg.RedisURL != "" {
@@ -112,11 +113,15 @@ func main() {
 			os.Exit(1)
 		}
 		store = jobstore.NewRedisStore(redisClient)
-		logger.Info("using redis store", slog.String("url", cfg.RedisURL))
+		logger.Info("using redis store")
 	} else {
 		store = jobstore.NewMemoryStore()
 		logger.Info("using memory store")
 	}
+
+	pipe := pipeline.New(store, storageClient, pdfRenderer, mailer, logger, cfg.OutputPrefix, cfg.LogoURL)
+	var bgWg sync.WaitGroup
+	syncTimeout := time.Duration(cfg.SyncTimeoutSec) * time.Second
 
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
@@ -127,19 +132,19 @@ func main() {
 
 	r.Get("/health", handlers.NewHealthHandler().ServeHTTP)
 
-	r.With(appmiddleware.RateLimit(rate.Limit(reportSubmitRPS), reportSubmitBurst, logger)).
-		Post("/v1/reports",
-			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, storageClient, cfg.MaxPairs, cfg.OutputPrefix, cfg.LogoURL).ServeHTTP,
-		)
+	r.Route("/reports", func(r chi.Router) {
+		r.Use(appmiddleware.RateLimit(rate.Limit(reportRPS), reportBurst, logger))
 
-	r.Get("/v1/reports/{id}",
-		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
-	)
+		r.Post("/", handlers.NewReportHandler(
+			logger, validate, urlPolicy, store, pipe, &bgWg, cfg.MaxPairs, syncTimeout,
+		).ServeHTTP)
 
-	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
-		Post("/v1/pdf",
-			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
-		)
+		r.Get("/{jobID}", handlers.NewReportStatusHandler(logger, store).ServeHTTP)
+
+		r.Post("/{jobID}/notify", handlers.NewReportNotifyHandler(
+			logger, validate, store, mailer,
+		).ServeHTTP)
+	})
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -166,6 +171,9 @@ func main() {
 		logger.Error("graceful shutdown failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+
+	logger.Info("waiting for background jobs to finish")
+	bgWg.Wait()
 	logger.Info("server shutdown complete")
 }
 

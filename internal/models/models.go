@@ -1,6 +1,5 @@
 package models
 
-// ReportRequest is the shared request schema for both /v1/html and /v1/pdf.
 type ReportRequest struct {
 	InvoiceNumber    *string `json:"invoiceNumber" validate:"omitempty,max=200"`
 	InterventionName string  `json:"interventionName" validate:"required,max=200"`
@@ -36,24 +35,23 @@ type Photo struct {
 	Date string `json:"date,omitempty" validate:"omitempty,datetime=2006-01-02"`
 }
 
-type HTMLResponse struct {
+type ReportResponse struct {
 	RequestID string `json:"requestId"`
 	JobID     string `json:"jobId"`
-	HTMLKey   string `json:"htmlKey"`
-	HTMLURL   string `json:"htmlUrl"`
+	Status    string `json:"status"`
+	URL       string `json:"url"`
 }
 
-type PDFDebug struct {
-	HTMLKey string `json:"htmlKey"`
-	HTMLURL string `json:"htmlUrl"`
+type NotifyRequest struct {
+	Emails []string `json:"emails" validate:"required,min=1,dive,email"`
 }
 
-type PDFResponse struct {
-	RequestID string    `json:"requestId"`
-	JobID     string    `json:"jobId"`
-	PDFKey    string    `json:"pdfKey"`
-	PDFURL    string    `json:"pdfUrl"`
-	Debug     *PDFDebug `json:"debug,omitempty"`
+type NotifyResponse struct {
+	RequestID  string   `json:"requestId"`
+	JobID      string   `json:"jobId"`
+	Status     string   `json:"status"`
+	Recipients []string `json:"recipients"`
+	Message    string   `json:"message,omitempty"`
 }
 
 type APIError struct {
@@ -70,12 +68,4 @@ type ErrorResponse struct {
 type HealthResponse struct {
 	RequestID string `json:"requestId,omitempty"`
 	OK        bool   `json:"ok"`
-}
-
-// ReportSubmitResponse is returned synchronously by POST /v1/reports.
-type ReportSubmitResponse struct {
-	RequestID string `json:"requestId"`
-	JobID     string `json:"jobId"`
-	Status    string `json:"status"`
-	HTMLURL   string `json:"htmlUrl"`
 }

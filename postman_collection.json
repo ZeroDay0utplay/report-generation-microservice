@@ -29,10 +29,10 @@
       ]
     },
     {
-      "name": "Reports (SSR)",
+      "name": "Reports",
       "item": [
         {
-          "name": "POST /v1/reports – Submit report",
+          "name": "POST /reports – Generate report (sync/async)",
           "event": [
             {
               "listen": "test",
@@ -48,7 +48,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{base_url}}/v1/reports",
+            "url": "{{base_url}}/reports",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
@@ -56,11 +56,11 @@
           }
         },
         {
-          "name": "POST /v1/reports – Idempotency check (same payload → same jobId)",
+          "name": "POST /reports – Idempotency check (same payload)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{base_url}}/v1/reports",
+            "url": "{{base_url}}/reports",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
@@ -68,26 +68,21 @@
           }
         },
         {
-          "name": "GET /v1/reports/:id – Job status",
+          "name": "GET /reports/:jobID – Poll status",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/v1/reports/{{job_id}}"
+            "url": "{{base_url}}/reports/{{job_id}}"
           }
-        }
-      ]
-    },
-    {
-      "name": "PDF",
-      "item": [
+        },
         {
-          "name": "POST /v1/pdf – Generate PDF",
+          "name": "POST /reports/:jobID/notify – Register emails",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{base_url}}/v1/pdf",
+            "url": "{{base_url}}/reports/{{job_id}}/notify",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ]\n}"
+              "raw": "{\n  \"emails\": [\"alice@example.com\", \"bob@example.com\"]\n}"
             }
           }
         }
@@ -97,11 +92,11 @@
       "name": "Error cases",
       "item": [
         {
-          "name": "POST /v1/reports – Missing required field (400)",
+          "name": "POST /reports – Missing required field (400)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{base_url}}/v1/reports",
+            "url": "{{base_url}}/reports",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\"\n}"
@@ -109,10 +104,34 @@
           }
         },
         {
-          "name": "GET /v1/reports/:id – Job not found (404)",
+          "name": "GET /reports/:jobID – Not found (404)",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/v1/reports/job_doesnotexist"
+            "url": "{{base_url}}/reports/job_doesnotexist"
+          }
+        },
+        {
+          "name": "POST /reports/:jobID/notify – Not found (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/reports/job_doesnotexist/notify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emails\": [\"test@example.com\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /reports/:jobID/notify – Invalid email (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/reports/{{job_id}}/notify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emails\": [\"not-an-email\"]\n}"
+            }
           }
         }
       ]

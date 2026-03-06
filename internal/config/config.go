@@ -14,7 +14,6 @@ type Config struct {
 	RequireHTTPS       bool
 	ImageHostAllowlist []string
 	GotenbergURL       string
-	UploadHTMLOnPDF    bool
 	B2Endpoint         string
 	B2Region           string
 	B2Bucket           string
@@ -26,6 +25,12 @@ type Config struct {
 	LogoURL            string
 	PublicBaseURL      string
 	RedisURL           string
+	SyncTimeoutSec     int
+	SMTPHost           string
+	SMTPPort           int
+	SMTPUser           string
+	SMTPPass           string
+	SMTPFrom           string
 }
 
 func Load() (Config, error) {
@@ -36,7 +41,6 @@ func Load() (Config, error) {
 		RequireHTTPS:       getEnvBool("REQUIRE_HTTPS", true),
 		ImageHostAllowlist: parseCSV(getEnv("IMAGE_HOST_ALLOWLIST", "")),
 		GotenbergURL:       strings.TrimRight(getEnv("GOTENBERG_URL", "http://gotenberg:8090"), "/"),
-		UploadHTMLOnPDF:    getEnvBool("UPLOAD_HTML_ON_PDF", false),
 		B2Endpoint:         strings.TrimRight(os.Getenv("B2_ENDPOINT"), "/"),
 		B2Region:           os.Getenv("B2_REGION"),
 		B2Bucket:           os.Getenv("B2_BUCKET"),
@@ -48,6 +52,12 @@ func Load() (Config, error) {
 		LogoURL:            getEnv("LOGO_URL", "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
 		RedisURL:           getEnv("REDIS_URL", ""),
+		SyncTimeoutSec:     getEnvInt("SYNC_TIMEOUT_SEC", 10),
+		SMTPHost:           getEnv("SMTP_HOST", ""),
+		SMTPPort:           getEnvInt("SMTP_PORT", 587),
+		SMTPUser:           getEnv("SMTP_USER", ""),
+		SMTPPass:           os.Getenv("SMTP_PASS"),
+		SMTPFrom:           getEnv("SMTP_FROM", ""),
 	}
 
 	if cfg.MaxPairs <= 0 {

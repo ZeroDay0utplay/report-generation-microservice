@@ -2,12 +2,10 @@ package render
 
 import (
 	"bytes"
-	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -229,46 +227,6 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 		Trucks:            trucks,
 		Evidences:         evidences,
 	}, nil
-}
-
-func RenderHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest, logoURL string) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	t, styles, err := loadHTMLBundle()
-	if err != nil {
-		return err
-	}
-
-	data, err := buildTemplateData(payload, styles, logoURL)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(w, data)
-}
-
-func RenderPDFHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest, logoURL string) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	t, styles, err := loadPDFBundle()
-	if err != nil {
-		return err
-	}
-
-	data, err := buildTemplateData(payload, styles, logoURL)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(w, data)
 }
 
 func RenderHTML(payload models.ReportRequest) (string, error) {

@@ -105,31 +105,74 @@ func samplePayload() models.ReportRequest {
 }
 
 type mockStore struct {
-	mu      sync.RWMutex
-	entries map[string]jobstore.Job
+	mu   sync.RWMutex
+	jobs map[string]jobstore.Job
 }
 
 func newMockStore() *mockStore {
-	return &mockStore{entries: make(map[string]jobstore.Job)}
+	return &mockStore{jobs: make(map[string]jobstore.Job)}
 }
 
-func (m *mockStore) Save(_ context.Context, job jobstore.Job) (jobstore.Job, error) {
+func (m *mockStore) Create(_ context.Context, job jobstore.Job) (jobstore.Job, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if existing, ok := m.entries[job.ID]; ok {
+	if existing, ok := m.jobs[job.ID]; ok {
 		return existing, nil
 	}
-	m.entries[job.ID] = job
+	m.jobs[job.ID] = job
 	return job, nil
+}
+
+func (m *mockStore) Update(_ context.Context, jobID string, fields map[string]any) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	job, ok := m.jobs[jobID]
+	if !ok {
+		return jobstore.ErrNotFound
+	}
+	if v, ok := fields["status"]; ok {
+		job.Status = v.(string)
+	}
+	if v, ok := fields["pdfUrl"]; ok {
+		job.PDFURL = v.(string)
+	}
+	if v, ok := fields["error"]; ok {
+		job.Error = v.(string)
+	}
+	m.jobs[jobID] = job
+	return nil
 }
 
 func (m *mockStore) GetJob(_ context.Context, jobID string) (jobstore.Job, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if job, ok := m.entries[jobID]; ok {
+	if job, ok := m.jobs[jobID]; ok {
 		return job, nil
 	}
 	return jobstore.Job{}, jobstore.ErrNotFound
+}
+
+func (m *mockStore) AppendEmails(_ context.Context, jobID string, emails []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	job, ok := m.jobs[jobID]
+	if !ok {
+		return jobstore.ErrNotFound
+	}
+	job.Emails = append(job.Emails, emails...)
+	m.jobs[jobID] = job
+	return nil
+}
+
+type mockMailer struct {
+	enabled bool
+	sent    []string
+}
+
+func (m *mockMailer) Enabled() bool { return m.enabled }
+func (m *mockMailer) SendPDFReady(_ context.Context, _ string, _ string, emails []string) error {
+	m.sent = append(m.sent, emails...)
+	return nil
 }
 
 func testLogger() *slog.Logger {

@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,16 +14,6 @@ import (
 	"pdf-html-service/internal/models"
 	"pdf-html-service/internal/security"
 )
-
-type Storage interface {
-	UploadHTML(ctx context.Context, key string, html string) error
-	UploadPDF(ctx context.Context, key string, reader io.Reader) error
-	PublicURL(key string) string
-}
-
-type PDFRenderer interface {
-	ConvertHTMLToPDF(ctx context.Context, html string) (io.ReadCloser, error)
-}
 
 type baseHandler struct {
 	logger    *slog.Logger
@@ -134,6 +122,40 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, code, messag
 	})
 }
 
+func validationDetails(err validator.ValidationErrors) []map[string]string {
+	details := make([]map[string]string, 0, len(err))
+	for _, fe := range err {
+		details = append(details, map[string]string{
+			"field": fe.Namespace(),
+			"rule":  fe.Tag(),
+			"param": fe.Param(),
+		})
+	}
+	return details
+}
+
+func isBodyTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
+}
+
+func normalizeEmails(emails []string) []string {
+	seen := make(map[string]struct{}, len(emails))
+	out := make([]string, 0, len(emails))
+	for _, e := range emails {
+		e = strings.ToLower(strings.TrimSpace(e))
+		if e == "" {
+			continue
+		}
+		if _, ok := seen[e]; ok {
+			continue
+		}
+		seen[e] = struct{}{}
+		out = append(out, e)
+	}
+	return out
+}
+
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -163,29 +185,4 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
-}
-
-func validationDetails(err validator.ValidationErrors) []map[string]string {
-	details := make([]map[string]string, 0, len(err))
-	for _, fe := range err {
-		details = append(details, map[string]string{
-			"field": fe.Namespace(),
-			"rule":  fe.Tag(),
-			"param": fe.Param(),
-		})
-	}
-	return details
-}
-
-func isBodyTooLarge(err error) bool {
-	var maxBytesErr *http.MaxBytesError
-	return errors.As(err, &maxBytesErr)
-}
-
-func htmlObjectKey(prefix, jobID string) string {
-	return fmt.Sprintf("%s/%s/index.html", strings.Trim(prefix, "/"), jobID)
-}
-
-func pdfObjectKey(prefix, jobID string) string {
-	return fmt.Sprintf("%s/%s/report.pdf", strings.Trim(prefix, "/"), jobID)
 }
