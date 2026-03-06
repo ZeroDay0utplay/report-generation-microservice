@@ -16,7 +16,7 @@ import (
 	"pdf-html-service/internal/security"
 )
 
-func newSubmitHandler(maxPairs int, publicURL string) (*ReportSubmitHandler, *mockStorage) {
+func newSubmitHandler(maxPairs int) (*ReportSubmitHandler, *mockStorage) {
 	st := newMockStorage()
 	return NewReportSubmitHandler(
 		testLogger(),
@@ -31,7 +31,7 @@ func newSubmitHandler(maxPairs int, publicURL string) (*ReportSubmitHandler, *mo
 }
 
 func TestReportSubmitInvalidPayload(t *testing.T) {
-	h, _ := newSubmitHandler(5, "")
+	h, _ := newSubmitHandler(5)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -55,7 +55,7 @@ func TestReportSubmitInvalidPayload(t *testing.T) {
 }
 
 func TestReportSubmitTooManyPairs(t *testing.T) {
-	h, _ := newSubmitHandler(1, "")
+	h, _ := newSubmitHandler(1)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -76,7 +76,7 @@ func TestReportSubmitTooManyPairs(t *testing.T) {
 }
 
 func TestReportSubmitSuccess(t *testing.T) {
-	h, storage := newSubmitHandler(5, "")
+	h, storage := newSubmitHandler(5)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -112,7 +112,7 @@ func TestReportSubmitSuccess(t *testing.T) {
 }
 
 func TestReportSubmitIdempotent(t *testing.T) {
-	h, _ := newSubmitHandler(5, "")
+	h, _ := newSubmitHandler(5)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -139,19 +139,3 @@ func TestReportSubmitIdempotent(t *testing.T) {
 	}
 }
 
-func TestReportStatusNotFound(t *testing.T) {
-	store := newMockStore()
-	handler := NewReportStatusHandler(testLogger(), store)
-
-	r := chi.NewRouter()
-	r.Use(appmiddleware.RequestID)
-	r.Get("/v1/reports/{id}", handler.ServeHTTP)
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/reports/doesnotexist", nil)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", rr.Code)
-	}
-}
