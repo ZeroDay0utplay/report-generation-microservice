@@ -23,16 +23,19 @@ type Config struct {
 	B2PublicBaseURL    string
 	OutputPrefix       string
 	LogLevel           string
+	LogoURL            string
+	PublicBaseURL      string
+	RedisURL           string
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Port:               getEnv("PORT", "3000"),
+		Port:               getEnv("PORT", "4000"),
 		MaxPairs:           getEnvInt("MAX_PAIRS", 200),
 		RequestBodyLimitMB: getEnvInt("REQUEST_BODY_LIMIT_MB", 2),
 		RequireHTTPS:       getEnvBool("REQUIRE_HTTPS", true),
 		ImageHostAllowlist: parseCSV(getEnv("IMAGE_HOST_ALLOWLIST", "")),
-		GotenbergURL:       strings.TrimRight(getEnv("GOTENBERG_URL", "http://gotenberg:3000"), "/"),
+		GotenbergURL:       strings.TrimRight(getEnv("GOTENBERG_URL", "http://gotenberg:8090"), "/"),
 		UploadHTMLOnPDF:    getEnvBool("UPLOAD_HTML_ON_PDF", false),
 		B2Endpoint:         strings.TrimRight(os.Getenv("B2_ENDPOINT"), "/"),
 		B2Region:           os.Getenv("B2_REGION"),
@@ -42,6 +45,9 @@ func Load() (Config, error) {
 		B2PublicBaseURL:    strings.TrimRight(os.Getenv("B2_PUBLIC_BASE_URL"), "/"),
 		OutputPrefix:       strings.Trim(getEnv("OUTPUT_PREFIX", "docs"), "/"),
 		LogLevel:           strings.ToLower(getEnv("LOG_LEVEL", "info")),
+		LogoURL:            getEnv("LOGO_URL", "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"),
+		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
+		RedisURL:           getEnv("REDIS_URL", ""),
 	}
 
 	if cfg.MaxPairs <= 0 {

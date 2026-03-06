@@ -474,3 +474,48 @@ body {
 }
 
 @page { size: A4; margin: 12mm; }
+
+/* ── Virtual scroll container ── */
+#vs-viewport {
+  overflow-anchor: none;
+  /* height and overflow-y set by JS */
+}
+
+#vs-spacer-top,
+#vs-spacer-bot {
+  background: transparent;
+}
+
+/* ── content-visibility: skip layout for off-screen panels ── */
+.panel.section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 600px;
+}
+
+/* ── Print: expand everything, disable virtual scroll ── */
+@media print {
+  #vs-viewport {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #vs-spacer-top,
+  #vs-spacer-bot {
+    display: none !important;
+  }
+
+  .panel.section {
+    content-visibility: visible !important;
+  }
+
+  .pair-card,
+  .image-tile {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

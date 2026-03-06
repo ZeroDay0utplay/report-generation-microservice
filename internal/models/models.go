@@ -71,3 +71,11 @@ type HealthResponse struct {
 	RequestID string `json:"requestId,omitempty"`
 	OK        bool   `json:"ok"`
 }
+
+// ReportSubmitResponse is returned synchronously by POST /v1/reports.
+type ReportSubmitResponse struct {
+	RequestID string `json:"requestId"`
+	JobID     string `json:"jobId"`
+	Status    string `json:"status"`
+	HTMLURL   string `json:"htmlUrl"`
+}

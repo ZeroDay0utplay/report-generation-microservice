@@ -1,0 +1,121 @@
+{
+  "info": {
+    "name": "Report Generation Microservice",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports (SSR)",
+      "item": [
+        {
+          "name": "POST /v1/reports – Submit report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/reports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /v1/reports – Idempotency check (same payload → same jobId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/reports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/:id – Job status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/reports/{{job_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "PDF",
+      "item": [
+        {
+          "name": "POST /v1/pdf – Generate PDF",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/pdf",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error cases",
+      "item": [
+        {
+          "name": "POST /v1/reports – Missing required field (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/reports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/:id – Job not found (404)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/reports/job_doesnotexist"
+          }
+        }
+      ]
+    }
+  ]
+}
