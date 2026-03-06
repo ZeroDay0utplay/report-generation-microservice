@@ -31,12 +31,12 @@ Required:
 
 Optional with defaults:
 
-- `PORT` (default: `3000`)
+- `PORT` (default: `4000`)
 - `MAX_PAIRS` (default: `200`)
 - `REQUEST_BODY_LIMIT_MB` (default: `2`)
 - `REQUIRE_HTTPS` (default: `true`)
 - `IMAGE_HOST_ALLOWLIST` (optional CSV)
-- `GOTENBERG_URL` (default: `http://gotenberg:3000`)
+- `GOTENBERG_URL` (default: `http://gotenberg:4000`)
 - `UPLOAD_HTML_ON_PDF` (default: `false`)
 - `OUTPUT_PREFIX` (default: `docs`)
 - `LOG_LEVEL` (default: `info`)
@@ -61,13 +61,13 @@ docker compose up --build
 3. Test health:
 
 ```bash
-curl -s http://localhost:3000/health
+curl -s http://localhost:4000/health
 ```
 
 ### Services in `docker-compose.yml`
 
-- `gotenberg`: `gotenberg/gotenberg:8`, internal port `3000`
-- `orchestrator`: this Go service, exposed on host `:3000`
+- `gotenberg`: `gotenberg/gotenberg:8`, internal port `4000`
+- `orchestrator`: this Go service, exposed on host `:4000`
 
 ## API
 
@@ -164,7 +164,7 @@ JSON
 Generate HTML:
 
 ```bash
-curl -sS -X POST http://localhost:3000/v1/html \
+curl -sS -X POST http://localhost:4000/v1/html \
   -H 'Content-Type: application/json' \
   --data @/tmp/report.json
 ```
@@ -172,7 +172,7 @@ curl -sS -X POST http://localhost:3000/v1/html \
 Generate PDF:
 
 ```bash
-curl -sS -X POST http://localhost:3000/v1/pdf \
+curl -sS -X POST http://localhost:4000/v1/pdf \
   -H 'Content-Type: application/json' \
   --data @/tmp/report.json
 ```
@@ -183,7 +183,7 @@ Deploy two services:
 
 1. **Gotenberg service**
 - Create a Render Web Service using image: `gotenberg/gotenberg:8`
-- Internal port: `3000`
+- Internal port: `4000`
 - Keep it private/internal if possible
 
 2. **Orchestrator service** (this repo)

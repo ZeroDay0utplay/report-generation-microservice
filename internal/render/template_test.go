@@ -35,8 +35,9 @@ func TestRenderHTMLIncludesCoreSections(t *testing.T) {
 	checks := []string{
 		"Documentation avant / apres",
 		"@page { size: A4; margin: 12mm; }",
-		"alt=\"Photo avant 1\"",
-		"alt=\"Photo apres 1\"",
+		"__REPORT_DATA__",
+		"https://img.example.com/before.jpg",
+		"https://img.example.com/after.jpg",
 		"pair-grid pair-grid-one",
 		"grid-template-columns: 1fr;",
 		"Kitchen Renovation",

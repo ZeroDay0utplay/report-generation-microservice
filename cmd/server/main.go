@@ -13,13 +13,33 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/time/rate"
 
 	"pdf-html-service/internal/config"
 	"pdf-html-service/internal/gotenberg"
 	"pdf-html-service/internal/handlers"
+	"pdf-html-service/internal/jobstore"
 	appmiddleware "pdf-html-service/internal/middleware"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/storage"
+)
+
+const (
+	httpClientTimeout       = 90 * time.Second
+	httpDialTimeout         = 5 * time.Second
+	httpKeepAlive           = 30 * time.Second
+	httpTLSHandshakeTimeout = 5 * time.Second
+	httpExpectContinue      = 1 * time.Second
+	httpMaxIdleConns        = 100
+	httpMaxIdleConnsPerHost = 20
+	httpIdleConnTimeout     = 90 * time.Second
+	shutdownTimeout         = 10 * time.Second
+
+	reportSubmitRPS   = 20
+	reportSubmitBurst = 30
+	pdfRPS            = 5
+	pdfBurst          = 8
 )
 
 func main() {
@@ -31,19 +51,33 @@ func main() {
 
 	logger := newLogger(cfg.LogLevel)
 
+	logger.Info("starting server",
+		slog.String("port", cfg.Port),
+		slog.Int("maxPairs", cfg.MaxPairs),
+		slog.Int("requestBodyLimitMB", cfg.RequestBodyLimitMB),
+		slog.Bool("requireHTTPS", cfg.RequireHTTPS),
+		slog.Bool("uploadHTMLOnPDF", cfg.UploadHTMLOnPDF),
+		slog.String("outputPrefix", cfg.OutputPrefix),
+		slog.String("logLevel", cfg.LogLevel),
+		slog.String("gotenbergURL", cfg.GotenbergURL),
+		slog.String("b2Endpoint", cfg.B2Endpoint),
+		slog.String("b2Bucket", cfg.B2Bucket),
+		slog.String("publicBaseURL", cfg.PublicBaseURL),
+	)
+
 	sharedHTTPClient := &http.Client{
-		Timeout: 90 * time.Second,
+		Timeout: httpClientTimeout,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
-				Timeout:   5 * time.Second,
-				KeepAlive: 30 * time.Second,
+				Timeout:   httpDialTimeout,
+				KeepAlive: httpKeepAlive,
 			}).DialContext,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   20,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   5 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
+			MaxIdleConns:          httpMaxIdleConns,
+			MaxIdleConnsPerHost:   httpMaxIdleConnsPerHost,
+			IdleConnTimeout:       httpIdleConnTimeout,
+			TLSHandshakeTimeout:   httpTLSHandshakeTimeout,
+			ExpectContinueTimeout: httpExpectContinue,
 		},
 	}
 
@@ -61,9 +95,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	renderer := gotenberg.NewClient(cfg.GotenbergURL, sharedHTTPClient)
+	pdfRenderer := gotenberg.NewClient(cfg.GotenbergURL, sharedHTTPClient)
 	validate := validator.New()
 	urlPolicy := security.NewURLPolicy(cfg.RequireHTTPS, cfg.ImageHostAllowlist)
+
+	var store jobstore.Store
+	if cfg.RedisURL != "" {
+		redisOpts, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			logger.Error("invalid REDIS_URL", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		redisClient := redis.NewClient(redisOpts)
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			logger.Error("redis unreachable", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		store = jobstore.NewRedisStore(redisClient)
+		logger.Info("using redis store", slog.String("url", cfg.RedisURL))
+	} else {
+		store = jobstore.NewMemoryStore()
+		logger.Info("using memory store")
+	}
 
 	r := chi.NewRouter()
 	r.Use(appmiddleware.RequestID)
@@ -73,8 +126,20 @@ func main() {
 	r.Use(appmiddleware.Logging(logger))
 
 	r.Get("/health", handlers.NewHealthHandler().ServeHTTP)
-	r.Post("/v1/html", handlers.NewHTMLHandler(logger, validate, urlPolicy, storageClient, cfg.MaxPairs, cfg.OutputPrefix).ServeHTTP)
-	r.Post("/v1/pdf", handlers.NewPDFHandler(logger, validate, urlPolicy, storageClient, renderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF).ServeHTTP)
+
+	r.With(appmiddleware.RateLimit(rate.Limit(reportSubmitRPS), reportSubmitBurst, logger)).
+		Post("/v1/reports",
+			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, storageClient, cfg.MaxPairs, cfg.OutputPrefix, cfg.LogoURL).ServeHTTP,
+		)
+
+	r.Get("/v1/reports/{id}",
+		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
+	)
+
+	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
+		Post("/v1/pdf",
+			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
+		)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -83,27 +148,24 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("server listening",
-			slog.String("port", cfg.Port),
-			slog.String("gotenbergUrl", cfg.GotenbergURL),
-		)
+		logger.Info("server ready", slog.String("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server stopped with error", slog.String("error", err.Error()))
+			logger.Error("server stopped", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+	sig := <-sigCh
+	logger.Info("shutdown signal received", slog.String("signal", sig.String()))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-
 	logger.Info("server shutdown complete")
 }
 
@@ -119,7 +181,5 @@ func newLogger(level string) *slog.Logger {
 	default:
 		l = slog.LevelInfo
 	}
-
-	opts := &slog.HandlerOptions{Level: l}
-	return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 }
