@@ -129,15 +129,11 @@ func main() {
 
 	r.With(appmiddleware.RateLimit(rate.Limit(reportSubmitRPS), reportSubmitBurst, logger)).
 		Post("/v1/reports",
-			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, cfg.MaxPairs, cfg.PublicBaseURL).ServeHTTP,
+			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, storageClient, cfg.MaxPairs, cfg.OutputPrefix, cfg.LogoURL).ServeHTTP,
 		)
 
 	r.Get("/v1/reports/{id}",
 		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
-	)
-
-	r.Get("/v1/reports/{id}/html",
-		handlers.NewReportHTMLHandler(logger, store, cfg.LogoURL).ServeHTTP,
 	)
 
 	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).

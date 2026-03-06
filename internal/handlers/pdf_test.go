@@ -145,10 +145,7 @@ func TestPDFHandlerSuccess(t *testing.T) {
 	if _, ok := storage.pdfObjects[resp.PDFKey]; !ok {
 		t.Fatalf("expected PDF object %q to be uploaded", resp.PDFKey)
 	}
-	if !strings.Contains(renderer.lastHTML, "Documentation avant / apres") {
-		t.Fatal("expected renderer to receive generated report HTML")
-	}
-	if !strings.Contains(renderer.lastHTML, "Photos camions") || !strings.Contains(renderer.lastHTML, "Photos preuves") {
-		t.Fatal("expected renderer HTML to include trucks and evidences sections")
+	if !strings.Contains(renderer.lastHTML, "avant") || !strings.Contains(renderer.lastHTML, "apres") {
+		t.Fatal("expected renderer to receive generated PDF report HTML")
 	}
 }

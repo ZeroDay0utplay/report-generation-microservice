@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,14 +10,17 @@ import (
 
 	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
+	"pdf-html-service/internal/render"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/util"
 )
 
 type ReportSubmitHandler struct {
 	baseHandler
-	store         jobstore.Store
-	publicBaseURL string
+	store        jobstore.Store
+	storage      Storage
+	outputPrefix string
+	logoURL      string
 }
 
 func NewReportSubmitHandler(
@@ -26,13 +28,17 @@ func NewReportSubmitHandler(
 	validate *validator.Validate,
 	urlPolicy *security.URLPolicy,
 	store jobstore.Store,
+	storage Storage,
 	maxPairs int,
-	publicBaseURL string,
+	outputPrefix string,
+	logoURL string,
 ) *ReportSubmitHandler {
 	return &ReportSubmitHandler{
-		baseHandler:   baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
-		store:         store,
-		publicBaseURL: publicBaseURL,
+		baseHandler:  baseHandler{logger: logger, validate: validate, urlPolicy: urlPolicy, maxPairs: maxPairs},
+		store:        store,
+		storage:      storage,
+		outputPrefix: outputPrefix,
+		logoURL:      logoURL,
 	}
 }
 
@@ -47,15 +53,14 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_, reqAttrs, ok := h.validateReportPayload(w, r, body)
+	payload, reqAttrs, ok := h.validateReportPayload(w, r, body)
 	if !ok {
 		return
 	}
 
 	jobID := util.JobIDFromPayload(body)
 
-	existing, err := h.store.GetJob(r.Context(), jobID)
-	if err == nil {
+	if existing, err := h.store.GetJob(r.Context(), jobID); err == nil {
 		h.logger.Info("report submit: returning cached job",
 			append(reqAttrs, slog.String("jobId", jobID))...,
 		)
@@ -68,7 +73,32 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	htmlURL := fmt.Sprintf("%s/v1/reports/%s/html", h.publicBaseURL, jobID)
+	html, err := render.RenderHTMLWithLogo(*payload, h.logoURL)
+	if err != nil {
+		h.logger.Error("report submit: failed to render html",
+			append(reqAttrs,
+				slog.String("jobId", jobID),
+				slog.String("error", err.Error()),
+			)...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "RENDER_ERROR", "failed to render HTML", nil)
+		return
+	}
+
+	htmlKey := htmlObjectKey(h.outputPrefix, jobID)
+	if err := h.storage.UploadHTML(r.Context(), htmlKey, html); err != nil {
+		h.logger.Error("report submit: failed to upload html",
+			append(reqAttrs,
+				slog.String("jobId", jobID),
+				slog.String("error", err.Error()),
+			)...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "UPLOAD_ERROR", "failed to upload HTML", nil)
+		return
+	}
+
+	htmlURL := h.storage.PublicURL(htmlKey)
+
 	job := jobstore.Job{
 		ID:        jobID,
 		Status:    "ready",
@@ -79,7 +109,7 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	saved, saveErr := h.store.Save(r.Context(), job)
 	if saveErr != nil {
-		h.logger.Error("failed to save job",
+		h.logger.Error("report submit: failed to save job",
 			append(reqAttrs,
 				slog.String("jobId", jobID),
 				slog.String("error", saveErr.Error()),
