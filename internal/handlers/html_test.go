@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,25 +12,31 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	appmiddleware "pdf-html-service/internal/middleware"
-	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
 	"pdf-html-service/internal/security"
 )
 
-func newTestRouter(submitHandler *ReportSubmitHandler, store jobstore.Store) *chi.Mux {
-	r := chi.NewRouter()
-	r.Use(appmiddleware.RequestID)
-	r.Post("/v1/reports", submitHandler.ServeHTTP)
-	r.Get("/v1/reports/{id}", NewReportStatusHandler(testLogger(), store).ServeHTTP)
-	r.Get("/v1/reports/{id}/html", NewReportHTMLHandler(testLogger(), store, "").ServeHTTP)
-	return r
+func newSubmitHandler(maxPairs int, publicURL string) (*ReportSubmitHandler, *mockStorage) {
+	st := newMockStorage()
+	return NewReportSubmitHandler(
+		testLogger(),
+		validator.New(),
+		security.NewURLPolicy(true, nil),
+		newMockStore(),
+		st,
+		maxPairs,
+		"docs",
+		"",
+	), st
 }
 
 func TestReportSubmitInvalidPayload(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "")
+	h, _ := newSubmitHandler(5, "")
 
-	router := newTestRouter(h, store)
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/reports", h.ServeHTTP)
+
 	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewBufferString(`{"invoiceNumber":""}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -50,10 +55,12 @@ func TestReportSubmitInvalidPayload(t *testing.T) {
 }
 
 func TestReportSubmitTooManyPairs(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 1, "")
+	h, _ := newSubmitHandler(1, "")
 
-	router := newTestRouter(h, store)
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/reports", h.ServeHTTP)
+
 	payload := samplePayload()
 	payload.Pairs = append(payload.Pairs, payload.Pairs[0])
 	body, _ := json.Marshal(payload)
@@ -69,10 +76,12 @@ func TestReportSubmitTooManyPairs(t *testing.T) {
 }
 
 func TestReportSubmitSuccess(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "https://example.com")
+	h, storage := newSubmitHandler(5, "")
 
-	router := newTestRouter(h, store)
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/reports", h.ServeHTTP)
+
 	payload := samplePayload()
 	body, _ := json.Marshal(payload)
 
@@ -92,16 +101,23 @@ func TestReportSubmitSuccess(t *testing.T) {
 	if resp.JobID == "" || resp.HTMLURL == "" || resp.Status != "ready" {
 		t.Fatalf("expected jobId, htmlUrl, status=ready, got %+v", resp)
 	}
+	// htmlUrl should be the B2 public URL containing the jobID.
 	if !strings.Contains(resp.HTMLURL, resp.JobID) {
 		t.Fatalf("htmlUrl should contain jobId, got %s", resp.HTMLURL)
+	}
+	// HTML should have been uploaded to storage.
+	if len(storage.htmlObjects) == 0 {
+		t.Fatal("expected HTML to be uploaded to storage")
 	}
 }
 
 func TestReportSubmitIdempotent(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "https://example.com")
+	h, _ := newSubmitHandler(5, "")
 
-	router := newTestRouter(h, store)
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/reports", h.ServeHTTP)
+
 	payload := samplePayload()
 	body, _ := json.Marshal(payload)
 
@@ -123,67 +139,8 @@ func TestReportSubmitIdempotent(t *testing.T) {
 	}
 }
 
-func TestReportHTMLSSR(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	h := NewReportSubmitHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), store, 5, "")
-
-	router := newTestRouter(h, store)
-	payload := samplePayload()
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/reports", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	var submitResp models.ReportSubmitResponse
-	json.NewDecoder(rr.Body).Decode(&submitResp)
-
-	htmlReq := httptest.NewRequest(http.MethodGet, "/v1/reports/"+submitResp.JobID+"/html", nil)
-	htmlRr := httptest.NewRecorder()
-	router.ServeHTTP(htmlRr, htmlReq)
-
-	if htmlRr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", htmlRr.Code)
-	}
-	html := htmlRr.Body.String()
-	if !strings.Contains(html, "Documentation avant / apres") {
-		t.Fatal("expected HTML to contain pair section heading")
-	}
-	if !strings.Contains(html, "__REPORT_DATA__") {
-		t.Fatal("expected HTML to contain virtual scroll data")
-	}
-	if !strings.Contains(html, "Photos camions") {
-		t.Fatal("expected HTML to contain trucks section")
-	}
-	if !strings.Contains(html, "Photos preuves") {
-		t.Fatal("expected HTML to contain evidences section")
-	}
-}
-
-func TestReportHTMLEtag(t *testing.T) {
-	store := jobstore.NewMemoryStore()
-	payload := samplePayload()
-	job := jobstore.Job{ID: "job_test123", Status: "ready", HTMLURL: "/v1/reports/job_test123/html"}
-	store.Save(context.Background(), job, payload)
-
-	handler := NewReportHTMLHandler(testLogger(), store, "")
-
-	r := chi.NewRouter()
-	r.Get("/v1/reports/{id}/html", handler.ServeHTTP)
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/reports/job_test123/html", nil)
-	req.Header.Set("If-None-Match", `"job_test123"`)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusNotModified {
-		t.Fatalf("expected 304 for matching ETag, got %d", rr.Code)
-	}
-}
-
 func TestReportStatusNotFound(t *testing.T) {
-	store := jobstore.NewMemoryStore()
+	store := newMockStore()
 	handler := NewReportStatusHandler(testLogger(), store)
 
 	r := chi.NewRouter()
