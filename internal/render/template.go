@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -37,25 +38,25 @@ type photoView struct {
 }
 
 type templateData struct {
-	Styles           template.CSS
-	Date             string
-	InvoiceNumber    string
-	InterventionName string
-	Address          string
-	HeaderLogoURL    string
-	MessageHTML      template.HTML
-	IncludeDates     bool
-	PairGridClass    string
-	Company          models.Company
-	Email            string
-	Phone            string
-	PairsCount       int
+	Styles            template.CSS
+	Date              string
+	InvoiceNumber     string
+	InterventionName  string
+	Address           string
+	HeaderLogoURL     string
+	MessageHTML       template.HTML
+	IncludeDates      bool
+	PairGridClass     string
+	Company           models.Company
+	Email             string
+	Phone             string
+	PairsCount        int
 	Pairs             []pairView
 	PairsJSON         template.JS
 	PairGridClassJSON template.JS
 	IncludeDatesJS    template.JS
-	Trucks    []photoView
-	Evidences []photoView
+	Trucks            []photoView
+	Evidences         []photoView
 }
 
 var (
@@ -163,13 +164,45 @@ func pairGridClass(photoLayout string) string {
 	}
 }
 
+func stripTemporarySignatureParams(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return raw
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+
+	q := u.Query()
+	removed := false
+	for key := range q {
+		lower := strings.ToLower(key)
+		if strings.HasPrefix(lower, "x-amz-") ||
+			strings.HasPrefix(lower, "x-bz-") ||
+			lower == "expires" ||
+			lower == "signature" ||
+			lower == "awsaccesskeyid" ||
+			lower == "authorization" {
+			q.Del(key)
+			removed = true
+		}
+	}
+
+	if removed {
+		u.RawQuery = q.Encode()
+	}
+	u.Fragment = ""
+	return u.String()
+}
+
 func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string) (templateData, error) {
 	pairs := make([]pairView, 0, len(payload.Pairs))
 	for i, p := range payload.Pairs {
 		pairs = append(pairs, pairView{
 			Index:     i + 1,
-			BeforeURL: p.BeforeURL,
-			AfterURL:  p.AfterURL,
+			BeforeURL: stripTemporarySignatureParams(p.BeforeURL),
+			AfterURL:  stripTemporarySignatureParams(p.AfterURL),
 			Date:      p.Date,
 			Caption:   p.Caption,
 		})
@@ -177,12 +210,20 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 
 	trucks := make([]photoView, 0, len(payload.Trucks))
 	for i, p := range payload.Trucks {
-		trucks = append(trucks, photoView{Index: i + 1, URL: p.URL, Date: p.Date})
+		trucks = append(trucks, photoView{
+			Index: i + 1,
+			URL:   stripTemporarySignatureParams(p.URL),
+			Date:  p.Date,
+		})
 	}
 
 	evidences := make([]photoView, 0, len(payload.Evidences))
 	for i, p := range payload.Evidences {
-		evidences = append(evidences, photoView{Index: i + 1, URL: p.URL, Date: p.Date})
+		evidences = append(evidences, photoView{
+			Index: i + 1,
+			URL:   stripTemporarySignatureParams(p.URL),
+			Date:  p.Date,
+		})
 	}
 
 	email := payload.Company.Email
@@ -214,7 +255,7 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 		InvoiceNumber:     models.StringOrEmpty(payload.InvoiceNumber),
 		InterventionName:  payload.InterventionName,
 		Address:           payload.Address,
-		HeaderLogoURL:     logoURL,
+		HeaderLogoURL:     stripTemporarySignatureParams(logoURL),
 		MessageHTML:       template.HTML(messagePolicy.Sanitize(strings.TrimSpace(payload.Message))),
 		IncludeDates:      includeDates,
 		PairGridClass:     gridClass,

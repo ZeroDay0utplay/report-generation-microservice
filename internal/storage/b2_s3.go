@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -69,7 +70,7 @@ func NewB2Storage(ctx context.Context, opts Options) (*B2Storage, error) {
 	return &B2Storage{
 		client:        client,
 		bucket:        opts.Bucket,
-		publicBaseURL: strings.TrimRight(opts.PublicBaseURL, "/"),
+		publicBaseURL: sanitizePublicBaseURL(opts.PublicBaseURL),
 	}, nil
 }
 
@@ -97,4 +98,21 @@ func (s *B2Storage) UploadReader(ctx context.Context, key, contentType, cacheCon
 
 func (s *B2Storage) PublicURL(key string) string {
 	return s.publicBaseURL + "/" + strings.TrimLeft(key, "/")
+}
+
+func sanitizePublicBaseURL(raw string) string {
+	cleaned := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if cleaned == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(cleaned)
+	if err != nil {
+		return cleaned
+	}
+	// Signed query params (e.g. X-Amz-Expires) should never leak into public links.
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return strings.TrimRight(parsed.String(), "/")
 }
