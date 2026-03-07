@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	"pdf-html-service/internal/jobstore"
 	"pdf-html-service/internal/models"
@@ -54,8 +55,13 @@ func (m *mockStorage) PublicURL(key string) string {
 	return "https://public.example.com/" + key
 }
 
+func (m *mockStorage) DownloadURL(_ context.Context, key string) (string, error) {
+	return m.PublicURL(key), nil
+}
+
 type mockRenderer struct {
 	err      error
+	mergeErr error
 	pdfBytes []byte
 	lastHTML string
 }
@@ -66,6 +72,17 @@ func (m *mockRenderer) ConvertHTMLToPDF(_ context.Context, html string) (io.Read
 	}
 	m.lastHTML = html
 	return io.NopCloser(bytes.NewReader(m.pdfBytes)), nil
+}
+
+func (m *mockRenderer) MergePDFs(_ context.Context, pdfs []io.Reader) (io.ReadCloser, error) {
+	if m.mergeErr != nil {
+		return nil, m.mergeErr
+	}
+	var buf bytes.Buffer
+	for _, pdf := range pdfs {
+		io.Copy(&buf, pdf)
+	}
+	return io.NopCloser(&buf), nil
 }
 
 func samplePayload() models.ReportRequest {
@@ -107,10 +124,14 @@ func samplePayload() models.ReportRequest {
 type mockStore struct {
 	mu      sync.RWMutex
 	entries map[string]jobstore.Job
+	locks   map[string]string
 }
 
 func newMockStore() *mockStore {
-	return &mockStore{entries: make(map[string]jobstore.Job)}
+	return &mockStore{
+		entries: make(map[string]jobstore.Job),
+		locks:   make(map[string]string),
+	}
 }
 
 func (m *mockStore) Save(_ context.Context, job jobstore.Job) (jobstore.Job, error) {
@@ -123,6 +144,13 @@ func (m *mockStore) Save(_ context.Context, job jobstore.Job) (jobstore.Job, err
 	return job, nil
 }
 
+func (m *mockStore) Update(_ context.Context, job jobstore.Job) (jobstore.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.entries[job.ID] = job
+	return job, nil
+}
+
 func (m *mockStore) GetJob(_ context.Context, jobID string) (jobstore.Job, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -130,6 +158,25 @@ func (m *mockStore) GetJob(_ context.Context, jobID string) (jobstore.Job, error
 		return job, nil
 	}
 	return jobstore.Job{}, jobstore.ErrNotFound
+}
+
+func (m *mockStore) AcquireLock(_ context.Context, key string, owner string, _ time.Duration) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.locks[key]; ok && existing != owner {
+		return false, nil
+	}
+	m.locks[key] = owner
+	return true, nil
+}
+
+func (m *mockStore) ReleaseLock(_ context.Context, key string, owner string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.locks[key]; ok && existing == owner {
+		delete(m.locks, key)
+	}
+	return nil
 }
 
 func testLogger() *slog.Logger {

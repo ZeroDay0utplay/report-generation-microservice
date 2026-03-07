@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -27,13 +28,18 @@ type Options struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	PublicBaseURL   string
+	DownloadURLMode string
+	DownloadURLTTL  time.Duration
 	HTTPClient      *http.Client
 }
 
 type B2Storage struct {
 	client        *s3.Client
+	presignClient *s3.PresignClient
 	bucket        string
 	publicBaseURL string
+	downloadMode  string
+	downloadTTL   time.Duration
 }
 
 func NewB2Storage(ctx context.Context, opts Options) (*B2Storage, error) {
@@ -68,8 +74,11 @@ func NewB2Storage(ctx context.Context, opts Options) (*B2Storage, error) {
 
 	return &B2Storage{
 		client:        client,
+		presignClient: s3.NewPresignClient(client),
 		bucket:        opts.Bucket,
 		publicBaseURL: strings.TrimRight(opts.PublicBaseURL, "/"),
+		downloadMode:  normalizeDownloadMode(opts.DownloadURLMode),
+		downloadTTL:   normalizeDownloadTTL(opts.DownloadURLTTL),
 	}, nil
 }
 
@@ -97,4 +106,38 @@ func (s *B2Storage) UploadReader(ctx context.Context, key, contentType, cacheCon
 
 func (s *B2Storage) PublicURL(key string) string {
 	return s.publicBaseURL + "/" + strings.TrimLeft(key, "/")
+}
+
+func (s *B2Storage) DownloadURL(ctx context.Context, key string) (string, error) {
+	if s.downloadMode != "presign" {
+		return s.PublicURL(key), nil
+	}
+
+	objKey := strings.TrimLeft(key, "/")
+	out, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: &s.bucket,
+		Key:    &objKey,
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = s.downloadTTL
+	})
+	if err != nil {
+		return "", fmt.Errorf("presign object %q: %w", key, err)
+	}
+	return out.URL, nil
+}
+
+func normalizeDownloadMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "presign":
+		return "presign"
+	default:
+		return "public"
+	}
+}
+
+func normalizeDownloadTTL(ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return 24 * time.Hour
+	}
+	return ttl
 }

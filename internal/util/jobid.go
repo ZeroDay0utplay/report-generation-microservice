@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"pdf-html-service/internal/models"
 )
 
 // NewJobID generates a random, time-prefixed job ID.
@@ -25,6 +28,14 @@ func NewRequestID() string {
 func JobIDFromPayload(data []byte) string {
 	h := sha256.Sum256(data)
 	return fmt.Sprintf("job_%x", h[:12])
+}
+
+func JobIDFromReportRequest(payload models.ReportRequest) (string, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal payload for job id: %w", err)
+	}
+	return JobIDFromPayload(raw), nil
 }
 
 func newID(prefix string) string {

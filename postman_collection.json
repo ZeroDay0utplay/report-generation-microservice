@@ -13,6 +13,16 @@
       "key": "job_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "html_url",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pdf_url",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -29,25 +39,38 @@
       ]
     },
     {
-      "name": "Reports (SSR)",
+      "name": "Reports",
       "item": [
         {
-          "name": "POST /v1/reports – Submit report",
+          "name": "POST /v1/reports - Submit report",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
+                  "pm.test('status is 200 or 201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
                   "var json = pm.response.json();",
-                  "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }"
-                ],
-                "type": "text/javascript"
+                  "pm.test('response includes job and status', function () {",
+                  "  pm.expect(json.jobId).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.status).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }",
+                  "if (json.htmlUrl) { pm.collectionVariables.set('html_url', json.htmlUrl); }"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{base_url}}/v1/reports",
             "body": {
               "mode": "raw",
@@ -56,10 +79,15 @@
           }
         },
         {
-          "name": "POST /v1/reports – Idempotency check (same payload → same jobId)",
+          "name": "POST /v1/reports - Idempotency check",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{base_url}}/v1/reports",
             "body": {
               "mode": "raw",
@@ -68,7 +96,7 @@
           }
         },
         {
-          "name": "GET /v1/reports/:id – Job status",
+          "name": "GET /v1/reports/{{job_id}} - Status",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/reports/{{job_id}}"
@@ -80,15 +108,63 @@
       "name": "PDF",
       "item": [
         {
-          "name": "POST /v1/pdf – Generate PDF",
+          "name": "POST /v1/pdf - Generate PDF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "var json = pm.response.json();",
+                  "pm.test('response includes final PDF URL', function () {",
+                  "  pm.expect(json.jobId).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.status).to.eql('ready');",
+                  "  pm.expect(json.url).to.be.a('string').and.not.empty;",
+                  "});",
+                  "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }",
+                  "if (json.url) { pm.collectionVariables.set('pdf_url', json.url); }"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{base_url}}/v1/pdf",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ]\n}"
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
             }
+          }
+        },
+        {
+          "name": "POST /v1/pdf - Idempotency check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/pdf",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/{{job_id}} - Status after PDF",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/reports/{{job_id}}"
           }
         }
       ]
@@ -97,10 +173,15 @@
       "name": "Error cases",
       "item": [
         {
-          "name": "POST /v1/reports – Missing required field (400)",
+          "name": "POST /v1/reports - Missing required field (400)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{base_url}}/v1/reports",
             "body": {
               "mode": "raw",
@@ -109,7 +190,24 @@
           }
         },
         {
-          "name": "GET /v1/reports/:id – Job not found (404)",
+          "name": "POST /v1/pdf - Missing pairs (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/pdf",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"interventionName\": \"Invalid payload\",\n  \"address\": \"No pairs\",\n  \"company\": {\n    \"name\": \"ACME\",\n    \"contact\": \"+33 1 23 45 67 89\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/:id - Job not found (404)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/reports/job_doesnotexist"

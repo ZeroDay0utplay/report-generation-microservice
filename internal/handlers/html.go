@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -58,9 +59,17 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	jobID := util.JobIDFromPayload(body)
+	jobID, err := util.JobIDFromReportRequest(*payload)
+	if err != nil {
+		h.logger.Error("report submit: failed to compute job id",
+			append(reqAttrs, slog.String("error", err.Error()))...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to compute job id", nil)
+		return
+	}
 
-	if existing, err := h.store.GetJob(r.Context(), jobID); err == nil {
+	existing, err := h.store.GetJob(r.Context(), jobID)
+	if err == nil && existing.HTMLURL != "" {
 		h.logger.Info("report submit: returning cached job",
 			append(reqAttrs, slog.String("jobId", jobID))...,
 		)
@@ -72,7 +81,16 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
+	if err != nil && !errors.Is(err, jobstore.ErrNotFound) {
+		h.logger.Error("report submit: failed to read existing job",
+			append(reqAttrs,
+				slog.String("jobId", jobID),
+				slog.String("error", err.Error()),
+			)...,
+		)
+		writeError(w, r, http.StatusInternalServerError, "STORE_ERROR", "failed to read existing job", nil)
+		return
+	}
 	html, err := render.RenderHTMLWithLogo(*payload, h.logoURL)
 	if err != nil {
 		h.logger.Error("report submit: failed to render html",
@@ -99,12 +117,20 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	htmlURL := h.storage.PublicURL(htmlKey)
 
+	now := time.Now()
 	job := jobstore.Job{
 		ID:        jobID,
-		Status:    "ready",
+		Status:    statusReady,
 		HTMLURL:   htmlURL,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		Payload:   body,
+	}
+	if !existing.CreatedAt.IsZero() {
+		job.CreatedAt = existing.CreatedAt
+		job.PDFURL = existing.PDFURL
+		job.ErrorCode = existing.ErrorCode
+		job.ErrorMsg = existing.ErrorMsg
 	}
 
 	saved, saveErr := h.store.Save(r.Context(), job)
@@ -117,6 +143,23 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		)
 		writeError(w, r, http.StatusInternalServerError, "STORE_ERROR", "failed to save job", nil)
 		return
+	}
+	if saved.HTMLURL == "" {
+		job.CreatedAt = saved.CreatedAt
+		job.PDFURL = saved.PDFURL
+		job.ErrorCode = saved.ErrorCode
+		job.ErrorMsg = saved.ErrorMsg
+		saved, saveErr = h.store.Update(r.Context(), job)
+		if saveErr != nil {
+			h.logger.Error("report submit: failed to update job",
+				append(reqAttrs,
+					slog.String("jobId", jobID),
+					slog.String("error", saveErr.Error()),
+				)...,
+			)
+			writeError(w, r, http.StatusInternalServerError, "STORE_ERROR", "failed to update job", nil)
+			return
+		}
 	}
 
 	h.logger.Info("report submitted",

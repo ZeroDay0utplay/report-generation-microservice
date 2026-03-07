@@ -63,6 +63,14 @@ func main() {
 		slog.String("b2Endpoint", cfg.B2Endpoint),
 		slog.String("b2Bucket", cfg.B2Bucket),
 		slog.String("publicBaseURL", cfg.PublicBaseURL),
+		slog.String("downloadURLMode", cfg.DownloadURLMode),
+		slog.Int("downloadURLTTLSec", cfg.DownloadURLTTLSec),
+		slog.Int("pdfChunkSize", cfg.PDFChunkSize),
+		slog.Int("gotenbergConcurrency", cfg.GotenbergConcurrency),
+		slog.Int("chunkTimeoutSec", cfg.ChunkTimeoutSec),
+		slog.Int("mergeTimeoutSec", cfg.MergeTimeoutSec),
+		slog.Int("jobLockTTLSec", cfg.JobLockTTLSec),
+		slog.Int("jobWaitPollMS", cfg.JobWaitPollMS),
 	)
 
 	sharedHTTPClient := &http.Client{
@@ -88,6 +96,8 @@ func main() {
 		AccessKeyID:     cfg.B2AccessKeyID,
 		SecretAccessKey: cfg.B2SecretAccessKey,
 		PublicBaseURL:   cfg.B2PublicBaseURL,
+		DownloadURLMode: cfg.DownloadURLMode,
+		DownloadURLTTL:  cfg.DownloadURLTTL(),
 		HTTPClient:      sharedHTTPClient,
 	})
 	if err != nil {
@@ -131,10 +141,19 @@ func main() {
 		Post("/v1/reports",
 			handlers.NewReportSubmitHandler(logger, validate, urlPolicy, store, storageClient, cfg.MaxPairs, cfg.OutputPrefix, cfg.LogoURL).ServeHTTP,
 		)
+	r.Get("/v1/reports/{id}",
+		handlers.NewReportStatusHandler(logger, store).ServeHTTP,
+	)
 
 	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
 		Post("/v1/pdf",
-			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
+			handlers.NewPDFHandler(
+				logger, validate, urlPolicy, store, storageClient, pdfRenderer,
+				cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL,
+				cfg.PDFChunkSize, cfg.GotenbergConcurrency,
+				cfg.ChunkTimeout(), cfg.MergeTimeout(),
+				cfg.JobLockTTL(), cfg.JobWaitPollInterval(),
+			).ServeHTTP,
 		)
 
 	srv := &http.Server{

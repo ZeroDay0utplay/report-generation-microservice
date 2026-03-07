@@ -20,11 +20,13 @@ import (
 type Storage interface {
 	UploadHTML(ctx context.Context, key string, html string) error
 	UploadPDF(ctx context.Context, key string, reader io.Reader) error
+	DownloadURL(ctx context.Context, key string) (string, error)
 	PublicURL(key string) string
 }
 
 type PDFRenderer interface {
 	ConvertHTMLToPDF(ctx context.Context, html string) (io.ReadCloser, error)
+	MergePDFs(ctx context.Context, pdfs []io.Reader) (io.ReadCloser, error)
 }
 
 type baseHandler struct {
@@ -62,6 +64,8 @@ func (b *baseHandler) validateReportPayload(
 		b.logger.Warn("request rejected: invalid json", append(baseAttrs, slog.String("errorCode", "INVALID_JSON"))...)
 		return nil, baseAttrs, false
 	}
+
+	normalizeReportRequest(&payload)
 
 	reqAttrs := append(baseAttrs,
 		slog.String("invoiceNumber", models.StringOrEmpty(payload.InvoiceNumber)),
@@ -180,6 +184,43 @@ func validationDetails(err validator.ValidationErrors) []map[string]string {
 func isBodyTooLarge(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)
+}
+
+func normalizeReportRequest(payload *models.ReportRequest) {
+	payload.InterventionName = strings.TrimSpace(payload.InterventionName)
+	payload.Address = strings.TrimSpace(payload.Address)
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.PhotoLayout = strings.TrimSpace(payload.PhotoLayout)
+
+	payload.Company.Name = strings.TrimSpace(payload.Company.Name)
+	payload.Company.Contact = strings.TrimSpace(payload.Company.Contact)
+	payload.Company.Email = strings.TrimSpace(payload.Company.Email)
+	payload.Company.Phone = strings.TrimSpace(payload.Company.Phone)
+	payload.Company.Website = strings.TrimSpace(payload.Company.Website)
+	payload.Company.LogoURL = strings.TrimSpace(payload.Company.LogoURL)
+
+	if payload.InvoiceNumber != nil {
+		v := strings.TrimSpace(*payload.InvoiceNumber)
+		payload.InvoiceNumber = &v
+	}
+	if payload.IncludeDate != nil {
+		payload.IncludeDates = *payload.IncludeDate
+	}
+
+	for i := range payload.Pairs {
+		payload.Pairs[i].BeforeURL = strings.TrimSpace(payload.Pairs[i].BeforeURL)
+		payload.Pairs[i].AfterURL = strings.TrimSpace(payload.Pairs[i].AfterURL)
+		payload.Pairs[i].Date = strings.TrimSpace(payload.Pairs[i].Date)
+		payload.Pairs[i].Caption = strings.TrimSpace(payload.Pairs[i].Caption)
+	}
+	for i := range payload.Trucks {
+		payload.Trucks[i].URL = strings.TrimSpace(payload.Trucks[i].URL)
+		payload.Trucks[i].Date = strings.TrimSpace(payload.Trucks[i].Date)
+	}
+	for i := range payload.Evidences {
+		payload.Evidences[i].URL = strings.TrimSpace(payload.Evidences[i].URL)
+		payload.Evidences[i].Date = strings.TrimSpace(payload.Evidences[i].Date)
+	}
 }
 
 func htmlObjectKey(prefix, jobID string) string {

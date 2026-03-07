@@ -1,6 +1,6 @@
 package models
 
-// ReportRequest is the shared request schema for both /v1/html and /v1/pdf.
+// ReportRequest is the shared request schema for report rendering endpoints.
 type ReportRequest struct {
 	InvoiceNumber    *string `json:"invoiceNumber" validate:"omitempty,max=200"`
 	InterventionName string  `json:"interventionName" validate:"required,max=200"`
@@ -51,8 +51,9 @@ type PDFDebug struct {
 type PDFResponse struct {
 	RequestID string    `json:"requestId"`
 	JobID     string    `json:"jobId"`
+	Status    string    `json:"status"`
 	PDFKey    string    `json:"pdfKey"`
-	PDFURL    string    `json:"pdfUrl"`
+	URL       string    `json:"url"`
 	Debug     *PDFDebug `json:"debug,omitempty"`
 }
 
@@ -78,4 +79,14 @@ type ReportSubmitResponse struct {
 	JobID     string `json:"jobId"`
 	Status    string `json:"status"`
 	HTMLURL   string `json:"htmlUrl"`
+}
+
+type ReportStatusResponse struct {
+	RequestID string    `json:"requestId"`
+	JobID     string    `json:"jobId"`
+	Status    string    `json:"status"`
+	HTMLURL   string    `json:"htmlUrl,omitempty"`
+	PDFURL    string    `json:"pdfUrl,omitempty"`
+	URL       string    `json:"url,omitempty"`
+	Error     *APIError `json:"error,omitempty"`
 }
