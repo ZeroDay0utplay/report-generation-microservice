@@ -495,6 +495,7 @@
 </head>
 <body>
 
+{{if .ShowCover}}
 <div class="pdf-page">
   <div class="cover-hero">
     <div class="cover-brand-row">
@@ -548,6 +549,7 @@
     <span class="cover-bar-contact">contact@ideogroupe.fr · +33 01 88 24 71 11</span>
   </div>
 </div>
+{{end}}
 
 {{range .Pairs}}
 <div class="pdf-page">
@@ -646,6 +648,7 @@
 </div>
 {{end}}
 
+{{if .ShowFooter}}
 <div class="pdf-page">
   <div class="footer-body">
     <div class="footer-heading">
@@ -704,6 +707,7 @@
     </div>
   </div>
 </div>
+{{end}}
 
 </body>
 </html>

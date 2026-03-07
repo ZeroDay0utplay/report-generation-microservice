@@ -54,6 +54,8 @@ type templateData struct {
 	IncludeDatesJS    template.JS
 	Trucks    []photoView
 	Evidences []photoView
+	ShowCover  bool
+	ShowFooter bool
 }
 
 var (
@@ -161,11 +163,32 @@ func pairGridClass(photoLayout string) string {
 	}
 }
 
+type renderOpts struct {
+	showCover   bool
+	showFooter  bool
+	indexOffset int
+	totalPairs  int
+	pairs       []models.Pair
+}
+
+func defaultRenderOpts(payload models.ReportRequest) renderOpts {
+	return renderOpts{
+		showCover:  true,
+		showFooter: true,
+		totalPairs: len(payload.Pairs),
+		pairs:      payload.Pairs,
+	}
+}
+
 func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string) (templateData, error) {
-	pairs := make([]pairView, 0, len(payload.Pairs))
-	for i, p := range payload.Pairs {
+	return buildTemplateDataWithOpts(payload, styles, logoURL, defaultRenderOpts(payload))
+}
+
+func buildTemplateDataWithOpts(payload models.ReportRequest, styles template.CSS, logoURL string, opts renderOpts) (templateData, error) {
+	pairs := make([]pairView, 0, len(opts.pairs))
+	for i, p := range opts.pairs {
 		pairs = append(pairs, pairView{
-			Index:     i + 1,
+			Index:     opts.indexOffset + i + 1,
 			BeforeURL: p.BeforeURL,
 			AfterURL:  p.AfterURL,
 			Date:      p.Date,
@@ -219,13 +242,15 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 		Company:           payload.Company,
 		Email:             email,
 		Phone:             phone,
-		PairsCount:        len(pairs),
+		PairsCount:        opts.totalPairs,
 		Pairs:             pairs,
 		PairsJSON:         template.JS(pairsJSON),
 		PairGridClassJSON: template.JS(gridClassJSON),
 		IncludeDatesJS:    template.JS(includeDatesStr),
 		Trucks:            trucks,
 		Evidences:         evidences,
+		ShowCover:         opts.showCover,
+		ShowFooter:        opts.showFooter,
 	}, nil
 }
 
@@ -233,13 +258,33 @@ func RenderHTML(payload models.ReportRequest) (string, error) {
 	return RenderHTMLWithLogo(payload, "")
 }
 
-func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
+type ChunkOpts struct {
+	ShowCover   bool
+	ShowFooter  bool
+	IndexOffset int
+	TotalPairs  int
+}
+
+func RenderPDFChunk(payload models.ReportRequest, logoURL string, chunkPairs []models.Pair, opts ChunkOpts) (string, error) {
 	t, styles, err := loadPDFBundle()
 	if err != nil {
 		return "", err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL)
+	chunkPayload := payload
+	chunkPayload.Pairs = chunkPairs
+	if !opts.ShowFooter {
+		chunkPayload.Trucks = nil
+		chunkPayload.Evidences = nil
+	}
+
+	data, err := buildTemplateDataWithOpts(chunkPayload, styles, logoURL, renderOpts{
+		showCover:   opts.ShowCover,
+		showFooter:  opts.ShowFooter,
+		indexOffset: opts.IndexOffset,
+		totalPairs:  opts.TotalPairs,
+		pairs:       chunkPairs,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -252,6 +297,14 @@ func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
+	return RenderPDFChunk(payload, logoURL, payload.Pairs, ChunkOpts{
+		ShowCover:  true,
+		ShowFooter: true,
+		TotalPairs: len(payload.Pairs),
+	})
 }
 
 func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, error) {
