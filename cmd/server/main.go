@@ -160,6 +160,7 @@ func main() {
 	r.Use(appmiddleware.SecurityHeaders)
 	r.Use(appmiddleware.BodyLimit(cfg.BodyLimitBytes()))
 	r.Use(appmiddleware.Logging(logger))
+	r.Use(appmiddleware.CORS("*"))
 
 	r.Get("/health", handlers.NewHealthHandler().ServeHTTP)
 
