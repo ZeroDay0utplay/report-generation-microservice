@@ -12,8 +12,9 @@ services:
     networks:
       - internal
     command:
-      - gotenberg
-      - --api-port=8090
+      - "gotenberg"
+      - "--api-port=8090"
+      - "--api-timeout=400s"
     ports:
       - "8090:8090"
 
