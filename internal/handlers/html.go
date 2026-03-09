@@ -99,11 +99,14 @@ func (h *ReportSubmitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	htmlURL := h.storage.PublicURL(htmlKey)
 
+	now := time.Now()
 	job := jobstore.Job{
 		ID:        jobID,
+		Type:      jobstore.JobTypeHTML,
 		Status:    "ready",
 		HTMLURL:   htmlURL,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		Payload:   body,
 	}
 

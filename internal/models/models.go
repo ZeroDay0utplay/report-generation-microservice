@@ -56,6 +56,27 @@ type PDFResponse struct {
 	Debug     *PDFDebug `json:"debug,omitempty"`
 }
 
+type PDFJobResponse struct {
+	RequestID string `json:"requestId"`
+	JobID     string `json:"jobId"`
+	Status    string `json:"status"`
+	PDFURL    string `json:"pdfUrl,omitempty"`
+}
+
+type RegisterRecipientsRequest struct {
+	JobID  string   `json:"jobId" validate:"required,max=200"`
+	Emails []string `json:"emails" validate:"required,min=1,max=50,dive,required,email,max=200"`
+}
+
+type RegisterRecipientsResponse struct {
+	RequestID        string   `json:"requestId"`
+	JobID            string   `json:"jobId"`
+	Accepted         []string `json:"accepted"`
+	TotalRecipients  int      `json:"totalRecipients"`
+	EmailStatus      string   `json:"emailStatus"`
+	ProcessingStatus string   `json:"status"`
+}
+
 type APIError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
