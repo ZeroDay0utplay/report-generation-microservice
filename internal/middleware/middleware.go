@@ -19,6 +19,13 @@ type contextKey string
 
 const requestIDKey contextKey = "request_id"
 
+const (
+	corsAllowMethods  = "GET, POST, OPTIONS"
+	corsAllowHeaders  = "Accept, Authorization, Content-Type, X-Request-Id, X-Request-ID"
+	corsExposeHeaders = "X-Request-Id"
+	corsMaxAge        = "600"
+)
+
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-Id")
@@ -50,6 +57,35 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none';")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func CORS(allowOrigin string) func(http.Handler) http.Handler {
+	if allowOrigin == "" {
+		allowOrigin = "*"
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			headers := w.Header()
+			headers.Set("Access-Control-Allow-Origin", allowOrigin)
+			headers.Set("Access-Control-Allow-Methods", corsAllowMethods)
+			headers.Set("Access-Control-Expose-Headers", corsExposeHeaders)
+			headers.Set("Access-Control-Max-Age", corsMaxAge)
+
+			if reqHeaders := r.Header.Get("Access-Control-Request-Headers"); reqHeaders != "" {
+				headers.Set("Access-Control-Allow-Headers", reqHeaders)
+			} else {
+				headers.Set("Access-Control-Allow-Headers", corsAllowHeaders)
+			}
+
+			if r.Method == http.MethodOptions && r.Header.Get("Origin") != "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func BodyLimit(maxBytes int64) func(http.Handler) http.Handler {
