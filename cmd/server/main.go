@@ -73,20 +73,27 @@ func main() {
 		slog.Int("emailQueueSize", cfg.EmailQueueSize),
 	)
 
+	sharedTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   httpDialTimeout,
+			KeepAlive: httpKeepAlive,
+		}).DialContext,
+		MaxIdleConns:          httpMaxIdleConns,
+		MaxIdleConnsPerHost:   httpMaxIdleConnsPerHost,
+		IdleConnTimeout:       httpIdleConnTimeout,
+		TLSHandshakeTimeout:   httpTLSHandshakeTimeout,
+		ExpectContinueTimeout: httpExpectContinue,
+	}
+
 	sharedHTTPClient := &http.Client{
-		Timeout: httpClientTimeout,
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   httpDialTimeout,
-				KeepAlive: httpKeepAlive,
-			}).DialContext,
-			MaxIdleConns:          httpMaxIdleConns,
-			MaxIdleConnsPerHost:   httpMaxIdleConnsPerHost,
-			IdleConnTimeout:       httpIdleConnTimeout,
-			TLSHandshakeTimeout:   httpTLSHandshakeTimeout,
-			ExpectContinueTimeout: httpExpectContinue,
-		},
+		Timeout:   httpClientTimeout,
+		Transport: sharedTransport,
+	}
+
+	gotenbergHTTPClient := &http.Client{
+		Timeout:   0,
+		Transport: sharedTransport,
 	}
 
 	storageClient, err := storage.NewB2Storage(context.Background(), storage.Options{
@@ -103,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	pdfRenderer := gotenberg.NewClient(cfg.GotenbergURL, sharedHTTPClient)
+	pdfRenderer := gotenberg.NewClient(cfg.GotenbergURL, gotenbergHTTPClient)
 	validate := validator.New()
 	urlPolicy := security.NewURLPolicy(cfg.RequireHTTPS, cfg.ImageHostAllowlist)
 

@@ -196,13 +196,20 @@ func stripTemporarySignatureParams(raw string) string {
 	return u.String()
 }
 
-func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string) (templateData, error) {
+func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string, stripSig bool) (templateData, error) {
+	normalize := func(u string) string {
+		if stripSig {
+			return stripTemporarySignatureParams(u)
+		}
+		return u
+	}
+
 	pairs := make([]pairView, 0, len(payload.Pairs))
 	for i, p := range payload.Pairs {
 		pairs = append(pairs, pairView{
 			Index:     i + 1,
-			BeforeURL: stripTemporarySignatureParams(p.BeforeURL),
-			AfterURL:  stripTemporarySignatureParams(p.AfterURL),
+			BeforeURL: normalize(p.BeforeURL),
+			AfterURL:  normalize(p.AfterURL),
 			Date:      p.Date,
 			Caption:   p.Caption,
 		})
@@ -212,7 +219,7 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 	for i, p := range payload.Trucks {
 		trucks = append(trucks, photoView{
 			Index: i + 1,
-			URL:   stripTemporarySignatureParams(p.URL),
+			URL:   normalize(p.URL),
 			Date:  p.Date,
 		})
 	}
@@ -221,7 +228,7 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 	for i, p := range payload.Evidences {
 		evidences = append(evidences, photoView{
 			Index: i + 1,
-			URL:   stripTemporarySignatureParams(p.URL),
+			URL:   normalize(p.URL),
 			Date:  p.Date,
 		})
 	}
@@ -255,7 +262,7 @@ func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoUR
 		InvoiceNumber:     models.StringOrEmpty(payload.InvoiceNumber),
 		InterventionName:  payload.InterventionName,
 		Address:           payload.Address,
-		HeaderLogoURL:     stripTemporarySignatureParams(logoURL),
+		HeaderLogoURL:     normalize(logoURL),
 		MessageHTML:       template.HTML(messagePolicy.Sanitize(strings.TrimSpace(payload.Message))),
 		IncludeDates:      includeDates,
 		PairGridClass:     gridClass,
@@ -284,7 +291,7 @@ func RenderHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest
 		return err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL)
+	data, err := buildTemplateData(payload, styles, logoURL, true)
 	if err != nil {
 		return err
 	}
@@ -304,7 +311,7 @@ func RenderPDFHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequ
 		return err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL)
+	data, err := buildTemplateData(payload, styles, logoURL, false)
 	if err != nil {
 		return err
 	}
@@ -322,7 +329,7 @@ func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string
 		return "", err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL)
+	data, err := buildTemplateData(payload, styles, logoURL, false)
 	if err != nil {
 		return "", err
 	}
@@ -343,7 +350,7 @@ func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, e
 		return "", err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL)
+	data, err := buildTemplateData(payload, styles, logoURL, true)
 	if err != nil {
 		return "", err
 	}
