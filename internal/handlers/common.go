@@ -119,8 +119,23 @@ func requestID(r *http.Request) string {
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
+
+	b, err := json.Marshal(payload)
+	if err == nil {
+		var m map[string]json.RawMessage
+		if json.Unmarshal(b, &m) == nil {
+			m["statusCode"], _ = json.Marshal(status)
+			b, err = json.Marshal(m)
+		}
+	}
+
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(payload)
+		return
+	}
+	_, _ = w.Write(b)
+	_, _ = w.Write([]byte("\n"))
 }
 
 func writeError(w http.ResponseWriter, r *http.Request, status int, code, message string, details any) {
