@@ -26,6 +26,12 @@ type Config struct {
 	LogoURL            string
 	PublicBaseURL      string
 	RedisURL           string
+	PDFWorkerCount     int
+	PDFQueueSize       int
+	PDFSyncWaitSec     int
+	EmailWorkerCount   int
+	EmailQueueSize     int
+	EmailWebhookURL    string
 }
 
 func Load() (Config, error) {
@@ -48,6 +54,12 @@ func Load() (Config, error) {
 		LogoURL:            getEnv("LOGO_URL", "https://dev-ideo-assets.s3.eu-central-003.backblazeb2.com/logo.png"),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
 		RedisURL:           getEnv("REDIS_URL", ""),
+		PDFWorkerCount:     getEnvInt("PDF_WORKER_COUNT", 4),
+		PDFQueueSize:       getEnvInt("PDF_QUEUE_SIZE", 128),
+		PDFSyncWaitSec:     getEnvInt("PDF_SYNC_WAIT_SEC", 10),
+		EmailWorkerCount:   getEnvInt("EMAIL_WORKER_COUNT", 2),
+		EmailQueueSize:     getEnvInt("EMAIL_QUEUE_SIZE", 128),
+		EmailWebhookURL:    strings.TrimSpace(getEnv("EMAIL_WEBHOOK_URL", "")),
 	}
 
 	if cfg.MaxPairs <= 0 {
@@ -55,6 +67,21 @@ func Load() (Config, error) {
 	}
 	if cfg.RequestBodyLimitMB <= 0 {
 		return Config{}, fmt.Errorf("REQUEST_BODY_LIMIT_MB must be > 0")
+	}
+	if cfg.PDFWorkerCount <= 0 {
+		return Config{}, fmt.Errorf("PDF_WORKER_COUNT must be > 0")
+	}
+	if cfg.PDFQueueSize <= 0 {
+		return Config{}, fmt.Errorf("PDF_QUEUE_SIZE must be > 0")
+	}
+	if cfg.PDFSyncWaitSec <= 0 {
+		return Config{}, fmt.Errorf("PDF_SYNC_WAIT_SEC must be > 0")
+	}
+	if cfg.EmailWorkerCount <= 0 {
+		return Config{}, fmt.Errorf("EMAIL_WORKER_COUNT must be > 0")
+	}
+	if cfg.EmailQueueSize <= 0 {
+		return Config{}, fmt.Errorf("EMAIL_QUEUE_SIZE must be > 0")
 	}
 
 	missing := make([]string, 0, 6)

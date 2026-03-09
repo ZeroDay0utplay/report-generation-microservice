@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -13,13 +14,113 @@ import (
 
 	appmiddleware "pdf-html-service/internal/middleware"
 	"pdf-html-service/internal/models"
+	"pdf-html-service/internal/pdfjobs"
 	"pdf-html-service/internal/security"
 )
 
-func TestPDFHandlerInvalidPayload(t *testing.T) {
-	storage := newMockStorage()
-	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
+type stubPDFSubmitService struct {
+	result pdfjobs.SubmitResult
+	err    error
+}
+
+func (s *stubPDFSubmitService) Submit(_ context.Context, _ []byte) (pdfjobs.SubmitResult, error) {
+	return s.result, s.err
+}
+
+func TestPDFHandlerReturnsCompleted(t *testing.T) {
+	svc := &stubPDFSubmitService{result: pdfjobs.SubmitResult{JobID: "job_1", Status: "completed", PDFURL: "https://example.com/report.pdf"}}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	var resp models.PDFJobResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Status != "completed" || resp.PDFURL == "" || resp.JobID == "" {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestPDFHandlerReturnsProcessing(t *testing.T) {
+	svc := &stubPDFSubmitService{result: pdfjobs.SubmitResult{JobID: "job_1", Status: "processing"}}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestPDFHandlerReturnsQueueFull(t *testing.T) {
+	svc := &stubPDFSubmitService{err: pdfjobs.ErrQueueFull}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestPDFHandlerReturnsFailedTerminalState(t *testing.T) {
+	svc := &stubPDFSubmitService{result: pdfjobs.SubmitResult{JobID: "job_1", Status: "failed", ErrorCode: "UPLOAD_ERROR", ErrorMessage: "failed to upload PDF"}}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
+
+	router := chi.NewRouter()
+	router.Use(appmiddleware.RequestID)
+	router.Post("/v1/pdf", h.ServeHTTP)
+
+	payload := samplePayload()
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestPDFHandlerReturnsValidationError(t *testing.T) {
+	svc := &stubPDFSubmitService{}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -32,86 +133,13 @@ func TestPDFHandlerInvalidPayload(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected status 400, got %d", rr.Code)
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 
-func TestPDFHandlerTooManyPairs(t *testing.T) {
-	storage := newMockStorage()
-	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 1, "docs", false, "")
-
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/pdf", h.ServeHTTP)
-
-	payload := samplePayload()
-	payload.Pairs = append(payload.Pairs, payload.Pairs[0])
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("expected status 413, got %d", rr.Code)
-	}
-}
-
-func TestPDFHandlerAllowsEmptyInvoiceNumber(t *testing.T) {
-	storage := newMockStorage()
-	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
-
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/pdf", h.ServeHTTP)
-
-	payload := samplePayload()
-	payload.InvoiceNumber = models.StringPtr("")
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
-	}
-}
-
-func TestPDFHandlerAllowsNullInvoiceNumber(t *testing.T) {
-	storage := newMockStorage()
-	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", false, "")
-
-	router := chi.NewRouter()
-	router.Use(appmiddleware.RequestID)
-	router.Post("/v1/pdf", h.ServeHTTP)
-
-	payload := samplePayload()
-	payload.InvoiceNumber = nil
-	body, _ := json.Marshal(payload)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
-	}
-}
-
-func TestPDFHandlerSuccess(t *testing.T) {
-	storage := newMockStorage()
-	renderer := &mockRenderer{pdfBytes: []byte("%PDF-1.7 test content")}
-	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), newMockStore(), storage, renderer, 5, "docs", true, "")
+func TestPDFHandlerReturnsGenericServiceError(t *testing.T) {
+	svc := &stubPDFSubmitService{err: errors.New("boom")}
+	h := NewPDFHandler(testLogger(), validator.New(), security.NewURLPolicy(true, nil), svc, 5)
 
 	router := chi.NewRouter()
 	router.Use(appmiddleware.RequestID)
@@ -119,33 +147,13 @@ func TestPDFHandlerSuccess(t *testing.T) {
 
 	payload := samplePayload()
 	body, _ := json.Marshal(payload)
-
 	req := httptest.NewRequest(http.MethodPost, "/v1/pdf", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rr.Code, rr.Body.String())
-	}
-
-	var resp models.PDFResponse
-	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-
-	if resp.RequestID == "" || resp.JobID == "" || resp.PDFKey == "" || resp.PDFURL == "" {
-		t.Fatalf("expected non-empty response fields, got %+v", resp)
-	}
-	if resp.Debug == nil || resp.Debug.HTMLKey == "" || resp.Debug.HTMLURL == "" {
-		t.Fatalf("expected debug html info in response, got %+v", resp.Debug)
-	}
-
-	if _, ok := storage.pdfObjects[resp.PDFKey]; !ok {
-		t.Fatalf("expected PDF object %q to be uploaded", resp.PDFKey)
-	}
-	if !strings.Contains(renderer.lastHTML, "avant") || !strings.Contains(renderer.lastHTML, "apres") {
-		t.Fatal("expected renderer to receive generated PDF report HTML")
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }

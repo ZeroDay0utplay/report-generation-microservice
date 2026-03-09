@@ -1,27 +1,46 @@
 # pdf-html-service
 
-`pdf-html-service` is a Go microservice that generates premium report HTML and PDF artifacts from a shared payload.
+`pdf-html-service` is a Go microservice that generates report HTML/PDF artifacts and stores them in Backblaze B2 (S3-compatible).
 
-- `POST /v1/html`: render HTML and upload to Backblaze B2
-- `POST /v1/pdf`: render same HTML, convert via Gotenberg Chromium, upload PDF to Backblaze B2
-- `GET /health`: health check
+## Routes
 
-Both generation routes share one HTML template to guarantee visual consistency.
+- `GET /health`
+- `POST /v1/reports` -> synchronous HTML generation/upload
+- `GET /v1/reports/{id}` -> job status
+- `POST /v1/pdf` -> asynchronous PDF generation with 10s synchronous wait window
+- `POST /v1/pdf/recipients` -> register recipient emails for a PDF job
 
-## Stack
+## Async PDF flow
 
-- Go 1.22+
-- Router: `go-chi/chi`
-- Validation: `go-playground/validator/v10`
-- Storage: AWS SDK v2 S3 client (Backblaze B2 S3-compatible endpoint)
-- PDF rendering: Gotenberg (`/forms/chromium/convert/html`)
-- Logging: `log/slog` JSON logs
-- Tests: `go test ./...`
+1. Client posts report payload to `POST /v1/pdf`.
+2. Service persists/reuses a durable PDF job and enqueues processing.
+3. Service waits up to `PDF_SYNC_WAIT_SEC` (default 10s):
+- Completed within window -> `200` with `status=completed` and `pdfUrl`.
+- Still running after window -> `202` with `status=processing` and `jobId`.
+4. Client posts `{jobId, emails}` to `POST /v1/pdf/recipients`.
+5. Recipients are persisted immediately (`200`), then delivery is triggered:
+- immediate if PDF is already completed,
+- deferred automatically if PDF is still processing.
 
-## Environment Variables
+## Job states
+
+PDF processing states:
+- `queued`
+- `processing`
+- `completed`
+- `failed`
+
+Email delivery states:
+- `none`
+- `registered`
+- `pending`
+- `sending`
+- `sent`
+- `failed`
+
+## Environment variables
 
 Required:
-
 - `B2_ENDPOINT`
 - `B2_REGION`
 - `B2_BUCKET`
@@ -29,81 +48,73 @@ Required:
 - `B2_SECRET_ACCESS_KEY`
 - `B2_PUBLIC_BASE_URL`
 
-Optional with defaults:
-
+Optional:
 - `PORT` (default: `4000`)
 - `MAX_PAIRS` (default: `200`)
 - `REQUEST_BODY_LIMIT_MB` (default: `2`)
 - `REQUIRE_HTTPS` (default: `true`)
-- `IMAGE_HOST_ALLOWLIST` (optional CSV)
-- `GOTENBERG_URL` (default: `http://gotenberg:4000`)
+- `IMAGE_HOST_ALLOWLIST` (CSV)
+- `GOTENBERG_URL` (default: `http://gotenberg:8090`)
 - `UPLOAD_HTML_ON_PDF` (default: `false`)
 - `OUTPUT_PREFIX` (default: `docs`)
 - `LOG_LEVEL` (default: `info`)
+- `LOGO_URL` (default in config)
+- `REDIS_URL` (empty uses in-memory store)
+- `PDF_WORKER_COUNT` (default: `4`)
+- `PDF_QUEUE_SIZE` (default: `128`)
+- `PDF_SYNC_WAIT_SEC` (default: `10`)
+- `EMAIL_WORKER_COUNT` (default: `2`)
+- `EMAIL_QUEUE_SIZE` (default: `128`)
+- `EMAIL_WEBHOOK_URL` (optional notifier webhook)
 
-Copy `.env.example` to `.env` and fill values.
+## API examples
 
-## Local Development
-
-1. Create env file:
-
-```bash
-cp .env.example .env
-# edit .env with real Backblaze credentials
-```
-
-2. Run with Docker Compose:
-
-```bash
-docker compose up --build
-```
-
-3. Test health:
-
-```bash
-curl -s http://localhost:4000/health
-```
-
-### Services in `docker-compose.yml`
-
-- `gotenberg`: `gotenberg/gotenberg:8`, internal port `4000`
-- `orchestrator`: this Go service, exposed on host `:4000`
-
-## API
-
-### `POST /v1/html`
-
-Returns:
+### `POST /v1/pdf` completed within wait window
 
 ```json
 {
   "requestId": "req_...",
   "jobId": "job_...",
-  "htmlKey": "docs/<jobId>/index.html",
-  "htmlUrl": "https://.../docs/<jobId>/index.html"
+  "status": "completed",
+  "pdfUrl": "https://.../docs/<jobId>/report.pdf"
 }
 ```
 
-### `POST /v1/pdf`
-
-Returns:
+### `POST /v1/pdf` still processing
 
 ```json
 {
   "requestId": "req_...",
   "jobId": "job_...",
-  "pdfKey": "docs/<jobId>/report.pdf",
-  "pdfUrl": "https://.../docs/<jobId>/report.pdf",
-  "debug": {
-    "htmlKey": "docs/<jobId>/index.html",
-    "htmlUrl": "https://.../docs/<jobId>/index.html"
-  }
+  "status": "processing"
 }
 ```
 
-`debug` is included only when `UPLOAD_HTML_ON_PDF=true`.
+### `POST /v1/pdf/recipients`
 
-### Error Shape
+Request:
+
+```json
+{
+  "jobId": "job_...",
+  "emails": ["a@example.com", "b@example.com"]
+}
+```
+
+Response:
+
+```json
+{
+  "requestId": "req_...",
+  "jobId": "job_...",
+  "accepted": ["a@example.com", "b@example.com"],
+  "totalRecipients": 2,
+  "emailStatus": "registered",
+  "status": "processing"
+}
+```
+
+### Error shape
 
 ```json
 {
@@ -116,85 +127,13 @@ Returns:
 }
 ```
 
-## Curl Examples
+## Operational behavior
 
-Use the same payload for both routes:
-
-```bash
-cat > /tmp/report.json <<'JSON'
-{
-  "invoiceNumber": "INV-2026-0001",
-  "interventionName": "Kitchen renovation",
-  "address": "123 Main St, Tunis",
-  "company": {
-    "name": "ACME Services",
-    "contact": "+216 00 000 000",
-    "email": "hello@acme.tn",
-    "phone": "+216 11 111 111",
-    "website": "https://acme.tn",
-    "logoUrl": "https://cdn.example.com/logo.png"
-  },
-  "message": "<p><strong>Rapport</strong> valide.</p>",
-  "includeDates": true,
-  "photoLayout": "one_by_row",
-  "pairs": [
-    {
-      "beforeUrl": "https://cdn.example.com/before1.jpg",
-      "afterUrl": "https://cdn.example.com/after1.jpg",
-      "date": "2026-02-20",
-      "caption": "Angle 1"
-    }
-  ],
-  "trucks": [
-    {
-      "url": "https://cdn.example.com/truck1.jpg",
-      "date": "2026-02-21"
-    }
-  ],
-  "evidences": [
-    {
-      "url": "https://cdn.example.com/evidence1.jpg",
-      "date": "2026-02-22"
-    }
-  ]
-}
-JSON
-```
-
-Generate HTML:
-
-```bash
-curl -sS -X POST http://localhost:4000/v1/html \
-  -H 'Content-Type: application/json' \
-  --data @/tmp/report.json
-```
-
-Generate PDF:
-
-```bash
-curl -sS -X POST http://localhost:4000/v1/pdf \
-  -H 'Content-Type: application/json' \
-  --data @/tmp/report.json
-```
-
-## Render Deployment
-
-Deploy two services:
-
-1. **Gotenberg service**
-- Create a Render Web Service using image: `gotenberg/gotenberg:8`
-- Internal port: `4000`
-- Keep it private/internal if possible
-
-2. **Orchestrator service** (this repo)
-- Deploy with `docker/Dockerfile`
-- Set all env vars from `.env.example`
-- Set `GOTENBERG_URL` to the internal URL of the Render Gotenberg service
-
-## Backblaze B2 Notes
-
-- For testing, you can use a public bucket and a `B2_PUBLIC_BASE_URL` that serves objects directly.
-- Future improvement: switch to signed URLs for tighter access control and time-limited downloads.
+- PDF processing and email delivery use bounded worker pools with bounded queues.
+- Queue saturation returns `503` with `QUEUE_FULL`.
+- Recipients are deduplicated case-insensitively.
+- Startup recovery re-queues `queued/processing` PDF jobs and pending email deliveries.
+- Redis-backed deployments persist job state across request/worker timing gaps.
 
 ## Commands
 
@@ -205,4 +144,3 @@ make lint
 make docker-up
 make docker-down
 ```
-# report-generation-microservice

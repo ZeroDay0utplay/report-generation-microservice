@@ -21,6 +21,7 @@ import (
 	"pdf-html-service/internal/handlers"
 	"pdf-html-service/internal/jobstore"
 	appmiddleware "pdf-html-service/internal/middleware"
+	"pdf-html-service/internal/pdfjobs"
 	"pdf-html-service/internal/security"
 	"pdf-html-service/internal/storage"
 )
@@ -36,10 +37,12 @@ const (
 	httpIdleConnTimeout     = 90 * time.Second
 	shutdownTimeout         = 10 * time.Second
 
-	reportSubmitRPS   = 20
-	reportSubmitBurst = 30
-	pdfRPS            = 5
-	pdfBurst          = 8
+	reportSubmitRPS    = 20
+	reportSubmitBurst  = 30
+	pdfRPS             = 5
+	pdfBurst           = 8
+	pdfRecipientsRPS   = 10
+	pdfRecipientsBurst = 20
 )
 
 func main() {
@@ -63,6 +66,11 @@ func main() {
 		slog.String("b2Endpoint", cfg.B2Endpoint),
 		slog.String("b2Bucket", cfg.B2Bucket),
 		slog.String("publicBaseURL", cfg.PublicBaseURL),
+		slog.Int("pdfWorkerCount", cfg.PDFWorkerCount),
+		slog.Int("pdfQueueSize", cfg.PDFQueueSize),
+		slog.Int("pdfSyncWaitSec", cfg.PDFSyncWaitSec),
+		slog.Int("emailWorkerCount", cfg.EmailWorkerCount),
+		slog.Int("emailQueueSize", cfg.EmailQueueSize),
 	)
 
 	sharedHTTPClient := &http.Client{
@@ -100,6 +108,7 @@ func main() {
 	urlPolicy := security.NewURLPolicy(cfg.RequireHTTPS, cfg.ImageHostAllowlist)
 
 	var store jobstore.Store
+	var pdfStore jobstore.PDFStore
 	if cfg.RedisURL != "" {
 		redisOpts, err := redis.ParseURL(cfg.RedisURL)
 		if err != nil {
@@ -111,11 +120,38 @@ func main() {
 			logger.Error("redis unreachable", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		store = jobstore.NewRedisStore(redisClient)
+		rs := jobstore.NewRedisStore(redisClient)
+		store = rs
+		pdfStore = rs
 		logger.Info("using redis store", slog.String("url", cfg.RedisURL))
 	} else {
-		store = jobstore.NewMemoryStore()
+		ms := jobstore.NewMemoryStore()
+		store = ms
+		pdfStore = ms
 		logger.Info("using memory store")
+	}
+
+	notifier := pdfjobs.Notifier(pdfjobs.NewLogNotifier(logger))
+	if cfg.EmailWebhookURL != "" {
+		notifier = pdfjobs.NewWebhookNotifier(cfg.EmailWebhookURL, sharedHTTPClient)
+		logger.Info("using webhook notifier", slog.String("emailWebhookURL", cfg.EmailWebhookURL))
+	} else {
+		logger.Info("using log notifier")
+	}
+
+	pdfService := pdfjobs.NewService(logger, pdfStore, storageClient, pdfRenderer, notifier, pdfjobs.Config{
+		WorkerCount:      cfg.PDFWorkerCount,
+		QueueSize:        cfg.PDFQueueSize,
+		EmailWorkerCount: cfg.EmailWorkerCount,
+		EmailQueueSize:   cfg.EmailQueueSize,
+		SyncWaitTimeout:  time.Duration(cfg.PDFSyncWaitSec) * time.Second,
+		OutputPrefix:     cfg.OutputPrefix,
+		UploadHTMLOnPDF:  cfg.UploadHTMLOnPDF,
+		LogoURL:          cfg.LogoURL,
+	})
+	if err := pdfService.Start(context.Background()); err != nil {
+		logger.Error("failed to start pdf service", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	r := chi.NewRouter()
@@ -138,7 +174,12 @@ func main() {
 
 	r.With(appmiddleware.RateLimit(rate.Limit(pdfRPS), pdfBurst, logger)).
 		Post("/v1/pdf",
-			handlers.NewPDFHandler(logger, validate, urlPolicy, store, storageClient, pdfRenderer, cfg.MaxPairs, cfg.OutputPrefix, cfg.UploadHTMLOnPDF, cfg.LogoURL).ServeHTTP,
+			handlers.NewPDFHandler(logger, validate, urlPolicy, pdfService, cfg.MaxPairs).ServeHTTP,
+		)
+
+	r.With(appmiddleware.RateLimit(rate.Limit(pdfRecipientsRPS), pdfRecipientsBurst, logger)).
+		Post("/v1/pdf/recipients",
+			handlers.NewPDFRecipientsHandler(logger, validate, pdfService).ServeHTTP,
 		)
 
 	srv := &http.Server{
@@ -162,6 +203,11 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
+	if err := pdfService.Stop(ctx); err != nil {
+		logger.Error("pdf service stop failed", slog.String("error", err.Error()))
+	}
+
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("graceful shutdown failed", slog.String("error", err.Error()))
 		os.Exit(1)

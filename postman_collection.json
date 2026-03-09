@@ -13,6 +13,11 @@
       "key": "job_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "huge_payload",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -29,19 +34,19 @@
       ]
     },
     {
-      "name": "Reports (SSR)",
+      "name": "Reports (HTML)",
       "item": [
         {
-          "name": "POST /v1/reports – Submit report",
+          "name": "POST /v1/reports - Submit report",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "var json = pm.response.json();",
                   "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
@@ -51,24 +56,12 @@
             "url": "{{base_url}}/v1/reports",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
+              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    }\n  ]\n}"
             }
           }
         },
         {
-          "name": "POST /v1/reports – Idempotency check (same payload → same jobId)",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{base_url}}/v1/reports",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"message\": \"<p>Chantier <strong>termine</strong> le 2026-03-01.</p>\",\n  \"includeDates\": true,\n  \"photoLayout\": \"one_by_row\",\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\",\n      \"caption\": \"Angle facade principale\"\n    },\n    {\n      \"beforeUrl\": \"https://img.example.com/before2.jpg\",\n      \"afterUrl\": \"https://img.example.com/after2.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ],\n  \"trucks\": [\n    { \"url\": \"https://img.example.com/truck1.jpg\", \"date\": \"2026-02-28\" }\n  ],\n  \"evidences\": [\n    { \"url\": \"https://img.example.com/evidence1.jpg\", \"date\": \"2026-02-28\" }\n  ]\n}"
-            }
-          }
-        },
-        {
-          "name": "GET /v1/reports/:id – Job status",
+          "name": "GET /v1/reports/{id} - Job status",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/reports/{{job_id}}"
@@ -77,10 +70,36 @@
       ]
     },
     {
-      "name": "PDF",
+      "name": "PDF Async",
       "item": [
         {
-          "name": "POST /v1/pdf – Generate PDF",
+          "name": "POST /v1/pdf - Submit async PDF job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 or 202', function () {",
+                  "  pm.expect([200, 202]).to.include(pm.response.code);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.jobId) { pm.collectionVariables.set('job_id', json.jobId); }",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('completed response shape', function () {",
+                  "    pm.expect(json.status).to.eql('completed');",
+                  "    pm.expect(json.pdfUrl).to.be.a('string').and.not.empty;",
+                  "  });",
+                  "}",
+                  "if (pm.response.code === 202) {",
+                  "  pm.test('processing response shape', function () {",
+                  "    pm.expect(json.status).to.eql('processing');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -90,6 +109,36 @@
               "raw": "{\n  \"invoiceNumber\": \"INV-2026-0001\",\n  \"interventionName\": \"Renovation cuisine - Batiment A\",\n  \"address\": \"12 Rue de la Paix, 75001 Paris\",\n  \"company\": {\n    \"name\": \"ACME Nettoyage\",\n    \"contact\": \"+33 1 23 45 67 89\",\n    \"email\": \"contact@acme.fr\",\n    \"phone\": \"+33 1 23 45 67 89\"\n  },\n  \"includeDates\": true,\n  \"pairs\": [\n    {\n      \"beforeUrl\": \"https://img.example.com/before1.jpg\",\n      \"afterUrl\": \"https://img.example.com/after1.jpg\",\n      \"date\": \"2026-02-28\"\n    }\n  ]\n}"
             }
           }
+        },
+        {
+          "name": "POST /v1/pdf/recipients - Register recipients",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "var json = pm.response.json();",
+                  "pm.test('jobId returned', function () {",
+                  "  pm.expect(json.jobId).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('accepted list exists', function () {",
+                  "  pm.expect(json.accepted).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/pdf/recipients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"emails\": [\"a@example.com\", \"b@example.com\"]\n}"
+            }
+          }
         }
       ]
     },
@@ -97,7 +146,7 @@
       "name": "Error cases",
       "item": [
         {
-          "name": "POST /v1/reports – Missing required field (400)",
+          "name": "POST /v1/reports - Missing required field (400)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -109,10 +158,85 @@
           }
         },
         {
-          "name": "GET /v1/reports/:id – Job not found (404)",
+          "name": "GET /v1/reports/{id} - Job not found (404)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/v1/reports/job_doesnotexist"
+          }
+        },
+        {
+          "name": "POST /v1/pdf/recipients - Job not found (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/pdf/recipients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"job_doesnotexist\",\n  \"emails\": [\"a@example.com\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /v1/pdf - Huge payload (+2000 image URLs)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var imageURL = 'https://s3.eu-central-003.backblazeb2.com/ideo-assets/thmytricfi0lc5zap2zk3iaan11v?response-content-disposition=inline%3B%20filename%3D%224.jpg%22%3B%20filename%2A%3DUTF-8%27%274.jpg&response-content-type=image%2Fjpeg&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=003ffdaec3c74460000000002%2F20260307%2Feu-central-003%2Fs3%2Faws4_request&X-Amz-Date=20260307T171713Z&X-Amz-Expires=300&X-Amz-SignedHeaders=host&X-Amz-Signature=39acc06fdcf16014e014a035b298620e29368d7ad1d98b652b1a0b8212bd43ef';",
+                  "var pairCount = 1001;",
+                  "var pairs = [];",
+                  "for (var i = 0; i < pairCount; i++) {",
+                  "  pairs.push({",
+                  "    beforeUrl: imageURL,",
+                  "    afterUrl: imageURL,",
+                  "    date: '2026-03-07',",
+                  "    caption: 'Bulk pair ' + (i + 1)",
+                  "  });",
+                  "}",
+                  "var payload = {",
+                  "  invoiceNumber: 'INV-2026-HUGE-0001',",
+                  "  interventionName: 'Huge payload stress test',",
+                  "  address: '123 Main St, Tunis',",
+                  "  company: {",
+                  "    name: 'ACME Services',",
+                  "    contact: '+216 00 000 000',",
+                  "    email: 'hello@acme.tn',",
+                  "    phone: '+216 11 111 111'",
+                  "  },",
+                  "  includeDates: true,",
+                  "  photoLayout: 'one_by_row',",
+                  "  pairs: pairs",
+                  "};",
+                  "pm.collectionVariables.set('huge_payload', JSON.stringify(payload));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 413 for oversized/over-limit payload', function () {",
+                  "  pm.expect(pm.response.code).to.eql(413);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test('error code is TOO_MANY_PAIRS or PAYLOAD_TOO_LARGE', function () {",
+                  "  pm.expect(['TOO_MANY_PAIRS', 'PAYLOAD_TOO_LARGE']).to.include(json.error.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/v1/pdf",
+            "body": {
+              "mode": "raw",
+              "raw": "{{huge_payload}}"
+            }
           }
         }
       ]
