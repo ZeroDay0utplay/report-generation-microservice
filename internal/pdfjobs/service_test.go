@@ -120,13 +120,18 @@ type fakeNotifier struct {
 	calls      int
 	jobCalls   map[string]int
 	recipients map[string][]string
+	missions   map[string]MissionInfo
 }
 
 func newFakeNotifier() *fakeNotifier {
-	return &fakeNotifier{jobCalls: make(map[string]int), recipients: make(map[string][]string)}
+	return &fakeNotifier{
+		jobCalls:   make(map[string]int),
+		recipients: make(map[string][]string),
+		missions:   make(map[string]MissionInfo),
+	}
 }
 
-func (f *fakeNotifier) SendReportReady(ctx context.Context, recipients []string, jobID, _ string) error {
+func (f *fakeNotifier) SendReportReady(ctx context.Context, recipients []string, jobID, _ string, mission MissionInfo) error {
 	if f.block != nil {
 		select {
 		case <-f.block:
@@ -143,6 +148,7 @@ func (f *fakeNotifier) SendReportReady(ctx context.Context, recipients []string,
 	f.calls++
 	f.jobCalls[jobID]++
 	f.recipients[jobID] = append([]string(nil), recipients...)
+	f.missions[jobID] = mission
 	return nil
 }
 
@@ -150,6 +156,12 @@ func (f *fakeNotifier) callCount(jobID string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.jobCalls[jobID]
+}
+
+func (f *fakeNotifier) mission(jobID string) MissionInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.missions[jobID]
 }
 
 func newServiceForTest(t *testing.T, renderer *fakeRenderer, storage *fakeStorage, notifier *fakeNotifier, cfg Config) (*Service, *jobstore.MemoryStore) {
@@ -337,6 +349,14 @@ func TestCompletedJobRegistrationSendsImmediately(t *testing.T) {
 		t.Fatalf("register recipients: %v", err)
 	}
 	waitForNotifierCalls(t, notifier, submitRes.JobID, 1, 2*time.Second)
+
+	mission := notifier.mission(submitRes.JobID)
+	if mission.InterventionName != "Kitchen renovation" {
+		t.Fatalf("expected intervention name to be propagated, got %q", mission.InterventionName)
+	}
+	if mission.Address != "123 Main St" {
+		t.Fatalf("expected address to be propagated, got %q", mission.Address)
+	}
 }
 
 func TestInProgressRegistrationSendsAfterCompletion(t *testing.T) {

@@ -81,7 +81,7 @@ func NewBrevoAPINotifier(logger *slog.Logger, httpClient *http.Client, cfg Brevo
 	}, nil
 }
 
-func (n *BrevoAPINotifier) SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string) error {
+func (n *BrevoAPINotifier) SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string, mission MissionInfo) error {
 	cleanRecipients, err := normalizeRecipients(recipients)
 	if err != nil {
 		return err
@@ -95,8 +95,8 @@ func (n *BrevoAPINotifier) SendReportReady(ctx context.Context, recipients []str
 		to = append(to, brevoRecipient{Email: recipient, Name: recipientDisplayName(recipient)})
 	}
 
-	htmlBody := buildEnterpriseFrenchEmailHTML(jobID, pdfURL)
-	textBody := buildEnterpriseFrenchEmailText(jobID, pdfURL)
+	htmlBody := buildEnterpriseFrenchEmailHTML(mission, pdfURL)
+	textBody := buildEnterpriseFrenchEmailText(mission, pdfURL)
 
 	payload, err := json.Marshal(brevoSendEmailRequest{
 		Sender: brevoRecipient{
@@ -180,11 +180,15 @@ func recipientDisplayName(email string) string {
 	return strings.Join(parts, " ")
 }
 
-func buildEnterpriseFrenchEmailHTML(jobID, pdfURL string) string {
-	safeJobID := html.EscapeString(strings.TrimSpace(jobID))
+func buildEnterpriseFrenchEmailHTML(mission MissionInfo, pdfURL string) string {
+	safeMission := html.EscapeString(strings.TrimSpace(mission.InterventionName))
+	safeAddress := html.EscapeString(strings.TrimSpace(mission.Address))
 	safeURL := html.EscapeString(strings.TrimSpace(pdfURL))
-	if safeJobID == "" {
-		safeJobID = "-"
+	if safeMission == "" {
+		safeMission = "-"
+	}
+	if safeAddress == "" {
+		safeAddress = "-"
 	}
 	if safeURL == "" {
 		safeURL = "-"
@@ -201,8 +205,8 @@ func buildEnterpriseFrenchEmailHTML(jobID, pdfURL string) string {
 			"<tr><td style=\"padding:28px 32px 8px 32px;\">"+
 			"<p style=\"margin:0 0 16px 0;font-size:15px;line-height:1.7;color:#28435b;\">Bonjour,<br/>Le traitement de votre rapport est terminé Vous pouvez acceder au document final via le lien securisé ci-dessous.</p>"+
 			"<table role=\"presentation\" width=\"100%%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:0 0 18px 0;background:#f7fafc;border:1px solid #d8e2ee;border-radius:12px;\">"+
-			"<tr><td style=\"padding:14px 16px;font-size:13px;color:#48627a;\"><strong style=\"color:#1a3248;\">Reference du job :</strong> %s</td></tr>"+
-			"<tr><td style=\"padding:0 16px 14px 16px;font-size:13px;color:#48627a;\"><strong style=\"color:#1a3248;\">Type :</strong> Rapport PDF - diffusion client</td></tr>"+
+			"<tr><td style=\"padding:14px 16px;font-size:13px;color:#48627a;\"><strong style=\"color:#1a3248;\">Intervention :</strong> %s</td></tr>"+
+			"<tr><td style=\"padding:0 16px 14px 16px;font-size:13px;color:#48627a;\"><strong style=\"color:#1a3248;\">Adresse :</strong> %s</td></tr>"+
 			"</table>"+
 			"<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:0 0 18px 0;\"><tr><td>"+
 			"<a href=\"%s\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"display:inline-block;background:#0f4c81;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:13px 22px;border-radius:10px;\">Telecharger le rapport</a>"+
@@ -216,17 +220,22 @@ func buildEnterpriseFrenchEmailHTML(jobID, pdfURL string) string {
 			"</table>"+
 			"</td></tr></table>"+
 			"</body></html>",
-		safeJobID,
+		safeMission,
+		safeAddress,
 		safeURL,
 		safeURL,
 		safeURL,
 	)
 }
 
-func buildEnterpriseFrenchEmailText(jobID, pdfURL string) string {
-	id := strings.TrimSpace(jobID)
-	if id == "" {
-		id = "-"
+func buildEnterpriseFrenchEmailText(mission MissionInfo, pdfURL string) string {
+	name := strings.TrimSpace(mission.InterventionName)
+	if name == "" {
+		name = "-"
+	}
+	address := strings.TrimSpace(mission.Address)
+	if address == "" {
+		address = "-"
 	}
 	link := strings.TrimSpace(pdfURL)
 	if link == "" {
@@ -234,8 +243,9 @@ func buildEnterpriseFrenchEmailText(jobID, pdfURL string) string {
 	}
 
 	return fmt.Sprintf(
-		"Bonjour,\n\nVotre rapport PDF est pret.\nReference du job: %s\nLien de telechargement: %s\n\nCordialement,\nService Reporting - IDEO Groupe\n",
-		id,
+		"Bonjour,\n\nVotre rapport PDF est pret.\nIntervention: %s\nAdresse: %s\nLien de telechargement: %s\n\nCordialement,\nService Reporting - IDEO Groupe\n",
+		name,
+		address,
 		link,
 	)
 }

@@ -30,8 +30,13 @@ type Renderer interface {
 	ConvertHTMLToPDF(ctx context.Context, html string) (io.ReadCloser, error)
 }
 
+type MissionInfo struct {
+	InterventionName string
+	Address          string
+}
+
 type Notifier interface {
-	SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string) error
+	SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string, mission MissionInfo) error
 }
 
 type Config struct {
@@ -557,6 +562,7 @@ func (s *Service) processEmailJob(ctx context.Context, workerID int, jobID strin
 	claim := false
 	var recipients []string
 	var pdfURL string
+	var mission MissionInfo
 
 	_, err := s.store.Update(ctx, jobID, func(j *jobstore.Job) error {
 		if j.Status != jobstore.JobStatusCompleted || j.PDFURL == "" || len(j.Recipients) == 0 {
@@ -570,6 +576,7 @@ func (s *Service) processEmailJob(ctx context.Context, workerID int, jobID strin
 		claim = true
 		recipients = append([]string(nil), j.Recipients...)
 		pdfURL = j.PDFURL
+		mission = missionInfoFromPayload(j.Payload)
 		n := s.now().UTC()
 		j.EmailStatus = jobstore.EmailStatusSending
 		j.EmailError = ""
@@ -587,7 +594,7 @@ func (s *Service) processEmailJob(ctx context.Context, workerID int, jobID strin
 		return
 	}
 
-	if err := s.notifier.SendReportReady(ctx, recipients, jobID, pdfURL); err != nil {
+	if err := s.notifier.SendReportReady(ctx, recipients, jobID, pdfURL, mission); err != nil {
 		_, updateErr := s.store.Update(ctx, jobID, func(j *jobstore.Job) error {
 			n := s.now().UTC()
 			j.EmailStatus = jobstore.EmailStatusFailed
@@ -630,6 +637,22 @@ func (s *Service) processEmailJob(ctx context.Context, workerID int, jobID strin
 		slog.Int("workerId", workerID),
 		slog.Int("recipients", len(recipients)),
 	)
+}
+
+func missionInfoFromPayload(raw json.RawMessage) MissionInfo {
+	if len(raw) == 0 {
+		return MissionInfo{}
+	}
+
+	var payload models.ReportRequest
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return MissionInfo{}
+	}
+
+	return MissionInfo{
+		InterventionName: strings.TrimSpace(payload.InterventionName),
+		Address:          strings.TrimSpace(payload.Address),
+	}
 }
 
 func (s *Service) failJob(ctx context.Context, jobID, code, message string) {

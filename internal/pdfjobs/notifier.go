@@ -19,11 +19,13 @@ func NewLogNotifier(logger *slog.Logger) *LogNotifier {
 	return &LogNotifier{logger: logger}
 }
 
-func (n *LogNotifier) SendReportReady(_ context.Context, recipients []string, jobID, pdfURL string) error {
+func (n *LogNotifier) SendReportReady(_ context.Context, recipients []string, jobID, pdfURL string, mission MissionInfo) error {
 	n.logger.Info("email notification acknowledged",
 		slog.String("jobId", jobID),
 		slog.Int("recipients", len(recipients)),
 		slog.String("pdfUrl", pdfURL),
+		slog.String("interventionName", mission.InterventionName),
+		slog.String("address", mission.Address),
 	)
 	return nil
 }
@@ -34,9 +36,11 @@ type WebhookNotifier struct {
 }
 
 type webhookPayload struct {
-	JobID      string   `json:"jobId"`
-	PDFURL     string   `json:"pdfUrl"`
-	Recipients []string `json:"recipients"`
+	JobID            string   `json:"jobId"`
+	PDFURL           string   `json:"pdfUrl"`
+	Recipients       []string `json:"recipients"`
+	InterventionName string   `json:"interventionName,omitempty"`
+	Address          string   `json:"address,omitempty"`
 }
 
 func NewWebhookNotifier(endpoint string, httpClient *http.Client) *WebhookNotifier {
@@ -46,8 +50,14 @@ func NewWebhookNotifier(endpoint string, httpClient *http.Client) *WebhookNotifi
 	return &WebhookNotifier{endpoint: strings.TrimSpace(endpoint), httpClient: httpClient}
 }
 
-func (n *WebhookNotifier) SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string) error {
-	payload, err := json.Marshal(webhookPayload{JobID: jobID, PDFURL: pdfURL, Recipients: recipients})
+func (n *WebhookNotifier) SendReportReady(ctx context.Context, recipients []string, jobID, pdfURL string, mission MissionInfo) error {
+	payload, err := json.Marshal(webhookPayload{
+		JobID:            jobID,
+		PDFURL:           pdfURL,
+		Recipients:       recipients,
+		InterventionName: mission.InterventionName,
+		Address:          mission.Address,
+	})
 	if err != nil {
 		return err
 	}

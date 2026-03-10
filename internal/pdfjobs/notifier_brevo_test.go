@@ -65,6 +65,10 @@ func TestBrevoAPINotifierSendReportReady(t *testing.T) {
 		[]string{"A@example.com", "a@example.com", "mohamed.toumi@enstab.ucar.tn"},
 		"job_123",
 		"https://ideo-photo-reports.s3.eu-central-003.backblazeb2.com/docs/job_123/report.pdf",
+		MissionInfo{
+			InterventionName: "Nettoyage de chantier - Batiment A",
+			Address:          "12 Rue de la Paix, 75001 Paris",
+		},
 	)
 	if err != nil {
 		t.Fatalf("send report ready: %v", err)
@@ -85,14 +89,23 @@ func TestBrevoAPINotifierSendReportReady(t *testing.T) {
 	if !strings.Contains(payload.HTMLContent, "Edition Entreprise") {
 		t.Fatal("expected enterprise edition heading in html email")
 	}
-	if !strings.Contains(payload.HTMLContent, "job_123") {
-		t.Fatal("expected job id in html email")
+	if strings.Contains(payload.HTMLContent, "job_123") {
+		t.Fatal("job id should not appear in html email content")
+	}
+	if !strings.Contains(payload.HTMLContent, "Nettoyage de chantier - Batiment A") {
+		t.Fatal("expected intervention name in html email")
+	}
+	if !strings.Contains(payload.HTMLContent, "12 Rue de la Paix, 75001 Paris") {
+		t.Fatal("expected address in html email")
 	}
 	if !strings.Contains(payload.HTMLContent, "backblazeb2.com/docs/job_123/report.pdf") {
 		t.Fatal("expected pdf url in html email")
 	}
 	if !strings.Contains(payload.TextContent, "Lien de telechargement") {
 		t.Fatal("expected plain text fallback content")
+	}
+	if strings.Contains(payload.TextContent, "job_123") {
+		t.Fatal("job id should not appear in text email content")
 	}
 }
 
@@ -114,7 +127,13 @@ func TestBrevoAPINotifierErrorStatus(t *testing.T) {
 		t.Fatalf("new notifier: %v", err)
 	}
 
-	err = notifier.SendReportReady(context.Background(), []string{"a@example.com"}, "job_1", "https://example.com/report.pdf")
+	err = notifier.SendReportReady(
+		context.Background(),
+		[]string{"a@example.com"},
+		"job_1",
+		"https://example.com/report.pdf",
+		MissionInfo{},
+	)
 	if err == nil {
 		t.Fatal("expected error on non-2xx brevo response")
 	}
