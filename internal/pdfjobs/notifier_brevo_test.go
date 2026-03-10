@@ -89,8 +89,8 @@ func TestBrevoAPINotifierSendReportReady(t *testing.T) {
 	if !strings.Contains(payload.HTMLContent, "Edition Entreprise") {
 		t.Fatal("expected enterprise edition heading in html email")
 	}
-	if strings.Contains(payload.HTMLContent, "job_123") {
-		t.Fatal("job id should not appear in html email content")
+	if strings.Contains(payload.HTMLContent, "Reference du job") {
+		t.Fatal("job reference block should not appear in html email content")
 	}
 	if !strings.Contains(payload.HTMLContent, "Nettoyage de chantier - Batiment A") {
 		t.Fatal("expected intervention name in html email")
@@ -104,8 +104,8 @@ func TestBrevoAPINotifierSendReportReady(t *testing.T) {
 	if !strings.Contains(payload.TextContent, "Lien de telechargement") {
 		t.Fatal("expected plain text fallback content")
 	}
-	if strings.Contains(payload.TextContent, "job_123") {
-		t.Fatal("job id should not appear in text email content")
+	if strings.Contains(payload.TextContent, "Reference du job") {
+		t.Fatal("job reference block should not appear in text email content")
 	}
 }
 

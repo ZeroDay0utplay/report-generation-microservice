@@ -200,6 +200,7 @@ func buildEnterpriseFrenchEmailHTML(mission MissionInfo, pdfURL string) string {
 			"<tr><td align=\"center\">"+
 			"<table role=\"presentation\" width=\"620\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #d8e2ee;\">"+
 			"<tr><td style=\"background:linear-gradient(135deg,#0f4c81,#0b6fb8);padding:28px 32px;color:#ffffff;\">"+
+			"<p style=\"margin:0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.9;\">Edition Entreprise</p>"+
 			"<h1 style=\"margin:10px 0 0 0;font-size:25px;line-height:1.25;font-weight:700;\">Votre rapport PDF est prêt</h1>"+
 			"</td></tr>"+
 			"<tr><td style=\"padding:28px 32px 8px 32px;\">"+

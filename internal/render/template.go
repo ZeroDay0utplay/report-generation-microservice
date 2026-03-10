@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/microcosm-cc/bluemonday"
 
@@ -124,18 +125,18 @@ func effectiveIncludeDates(payload models.ReportRequest) bool {
 func sortedUniquePayloadDates(payload models.ReportRequest) string {
 	dateSet := make(map[string]struct{})
 	for _, pair := range payload.Pairs {
-		if pair.Date != "" {
-			dateSet[pair.Date] = struct{}{}
+		if date := normalizePayloadDate(pair.Date); date != "" {
+			dateSet[date] = struct{}{}
 		}
 	}
 	for _, truck := range payload.Trucks {
-		if truck.Date != "" {
-			dateSet[truck.Date] = struct{}{}
+		if date := normalizePayloadDate(truck.Date); date != "" {
+			dateSet[date] = struct{}{}
 		}
 	}
 	for _, evidence := range payload.Evidences {
-		if evidence.Date != "" {
-			dateSet[evidence.Date] = struct{}{}
+		if date := normalizePayloadDate(evidence.Date); date != "" {
+			dateSet[date] = struct{}{}
 		}
 	}
 	if len(dateSet) == 0 {
@@ -147,6 +148,28 @@ func sortedUniquePayloadDates(payload models.ReportRequest) string {
 	}
 	sort.Strings(dates)
 	return strings.Join(dates, ", ")
+}
+
+func normalizePayloadDate(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+
+	if t, err := time.Parse("2006-01-02", value); err == nil {
+		return t.Format("2006-01-02")
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t.Format("2006-01-02")
+	}
+	if len(value) >= len("2006-01-02") {
+		prefix := value[:len("2006-01-02")]
+		if t, err := time.Parse("2006-01-02", prefix); err == nil {
+			return t.Format("2006-01-02")
+		}
+	}
+
+	return value
 }
 
 func normalizePhotoLayout(layout string) string {

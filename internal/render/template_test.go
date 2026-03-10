@@ -259,6 +259,40 @@ func TestRenderHTMLHeaderDatesAreSortedUniqueAndAggregated(t *testing.T) {
 	}
 }
 
+func TestRenderHTMLHeaderDatesNormalizesAndDeduplicatesPhotoDates(t *testing.T) {
+	payload := models.ReportRequest{
+		InvoiceNumber:    models.StringPtr("INV-2026-0002"),
+		InterventionName: "Renovation Facade",
+		Address:          "10 Rue de Marseille",
+		Company: models.Company{
+			Name:    "ACME Services",
+			Contact: "+216 00 000 000",
+		},
+		Pairs: []models.Pair{
+			{
+				BeforeURL: "https://img.example.com/before.jpg",
+				AfterURL:  "https://img.example.com/after.jpg",
+				Date:      "2026-03-01",
+			},
+		},
+		Trucks: []models.Photo{
+			{URL: "https://img.example.com/truck.jpg", Date: " 2026-03-01 "},
+		},
+		Evidences: []models.Photo{
+			{URL: "https://img.example.com/evidence.jpg", Date: "2026-03-02T09:00:00Z"},
+		},
+	}
+
+	html, err := RenderPDFHTMLWithLogo(payload, "")
+	if err != nil {
+		t.Fatalf("RenderPDFHTMLWithLogo failed: %v", err)
+	}
+
+	if !strings.Contains(html, "2026-03-01, 2026-03-02") {
+		t.Fatal("expected cover header date tab to show normalized, distinct photo dates")
+	}
+}
+
 func TestRenderHTMLPreservesImageURLsIncludingSignatureParams(t *testing.T) {
 	payload := models.ReportRequest{
 		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
