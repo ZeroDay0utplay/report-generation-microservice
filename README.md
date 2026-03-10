@@ -66,6 +66,10 @@ Optional:
 - `EMAIL_WORKER_COUNT` (default: `2`)
 - `EMAIL_QUEUE_SIZE` (default: `128`)
 - `EMAIL_WEBHOOK_URL` (optional notifier webhook)
+- `BREVO_API_KEY` (when set, Brevo transactional email API is used)
+- `BREVO_SENDER_EMAIL` (required when `BREVO_API_KEY` is set)
+- `BREVO_SENDER_NAME` (optional, default: `IDEO Groupe`)
+- `BREVO_EMAIL_SUBJECT` (optional, default: `Votre rapport PDF est pret`)
 
 ## API examples
 

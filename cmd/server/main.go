@@ -71,6 +71,7 @@ func main() {
 		slog.Int("pdfSyncWaitSec", cfg.PDFSyncWaitSec),
 		slog.Int("emailWorkerCount", cfg.EmailWorkerCount),
 		slog.Int("emailQueueSize", cfg.EmailQueueSize),
+		slog.Bool("brevoEnabled", cfg.BrevoAPIKey != ""),
 	)
 
 	sharedTransport := &http.Transport{
@@ -139,7 +140,20 @@ func main() {
 	}
 
 	notifier := pdfjobs.Notifier(pdfjobs.NewLogNotifier(logger))
-	if cfg.EmailWebhookURL != "" {
+	if cfg.BrevoAPIKey != "" {
+		brevoNotifier, err := pdfjobs.NewBrevoAPINotifier(logger, sharedHTTPClient, pdfjobs.BrevoAPINotifierConfig{
+			APIKey:      cfg.BrevoAPIKey,
+			SenderEmail: cfg.BrevoSenderEmail,
+			SenderName:  cfg.BrevoSenderName,
+			Subject:     cfg.BrevoEmailSubject,
+		})
+		if err != nil {
+			logger.Error("invalid brevo notifier config", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		notifier = brevoNotifier
+		logger.Info("using brevo api notifier", slog.String("senderEmail", cfg.BrevoSenderEmail))
+	} else if cfg.EmailWebhookURL != "" {
 		notifier = pdfjobs.NewWebhookNotifier(cfg.EmailWebhookURL, sharedHTTPClient)
 		logger.Info("using webhook notifier", slog.String("emailWebhookURL", cfg.EmailWebhookURL))
 	} else {

@@ -259,7 +259,7 @@ func TestRenderHTMLHeaderDatesAreSortedUniqueAndAggregated(t *testing.T) {
 	}
 }
 
-func TestRenderHTMLStripsTemporarySignatureParamsFromImageURLs(t *testing.T) {
+func TestRenderHTMLPreservesImageURLsIncludingSignatureParams(t *testing.T) {
 	payload := models.ReportRequest{
 		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen Renovation",
@@ -287,27 +287,25 @@ func TestRenderHTMLStripsTemporarySignatureParamsFromImageURLs(t *testing.T) {
 		t.Fatalf("RenderHTML failed: %v", err)
 	}
 
-	expectedKept := []string{
-		"https://img.example.com/before.jpg?w=1200",
-		"https://img.example.com/after.jpg?fit=cover",
-		"https://img.example.com/truck.jpg?h=600",
-		"https://img.example.com/evidence.jpg?size=large",
+	expectedTokens := []string{
+		"X-Amz-Algorithm=AWS4-HMAC-SHA256",
+		"X-Amz-Expires=3600",
+		"w=1200",
+		"signature=abc123",
+		"fit=cover",
+		"Expires=1700000000",
+		"h=600",
+		"AWSAccessKeyId=test",
+		"size=large",
 	}
-	for _, url := range expectedKept {
-		if !strings.Contains(html, url) {
-			t.Fatalf("expected rendered HTML to contain sanitized URL %q", url)
-		}
-	}
-
-	unwanted := []string{"X-Amz-Expires", "signature=abc123", "Expires=1700000000", "AWSAccessKeyId=test"}
-	for _, token := range unwanted {
-		if strings.Contains(html, token) {
-			t.Fatalf("expected rendered HTML to remove temporary signature token %q", token)
+	for _, token := range expectedTokens {
+		if !strings.Contains(html, token) {
+			t.Fatalf("expected rendered HTML to preserve token %q", token)
 		}
 	}
 }
 
-func TestRenderHTMLWithLogoStripsTemporarySignatureParams(t *testing.T) {
+func TestRenderHTMLWithLogoPreservesQueryParams(t *testing.T) {
 	payload := models.ReportRequest{
 		InvoiceNumber:    models.StringPtr("INV-2026-0001"),
 		InterventionName: "Kitchen Renovation",
@@ -329,10 +327,7 @@ func TestRenderHTMLWithLogoStripsTemporarySignatureParams(t *testing.T) {
 		t.Fatalf("RenderHTMLWithLogo failed: %v", err)
 	}
 
-	if !strings.Contains(html, "https://cdn.example.com/logo.png?v=1") {
-		t.Fatal("expected logo URL to keep non-signing params")
-	}
-	if strings.Contains(html, "X-Amz-Expires=") {
-		t.Fatal("expected logo URL to remove temporary signing params")
+	if !strings.Contains(html, "https://cdn.example.com/logo.png?X-Amz-Expires=3600&amp;v=1") {
+		t.Fatal("expected logo URL query params to be preserved")
 	}
 }

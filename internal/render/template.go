@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -164,44 +163,9 @@ func pairGridClass(photoLayout string) string {
 	}
 }
 
-func stripTemporarySignatureParams(raw string) string {
-	if strings.TrimSpace(raw) == "" {
-		return raw
-	}
-
-	u, err := url.Parse(raw)
-	if err != nil {
-		return raw
-	}
-
-	q := u.Query()
-	removed := false
-	for key := range q {
-		lower := strings.ToLower(key)
-		if strings.HasPrefix(lower, "x-amz-") ||
-			strings.HasPrefix(lower, "x-bz-") ||
-			lower == "expires" ||
-			lower == "signature" ||
-			lower == "awsaccesskeyid" ||
-			lower == "authorization" {
-			q.Del(key)
-			removed = true
-		}
-	}
-
-	if removed {
-		u.RawQuery = q.Encode()
-	}
-	u.Fragment = ""
-	return u.String()
-}
-
-func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string, stripSig bool) (templateData, error) {
+func buildTemplateData(payload models.ReportRequest, styles template.CSS, logoURL string) (templateData, error) {
 	normalize := func(u string) string {
-		if stripSig {
-			return stripTemporarySignatureParams(u)
-		}
-		return u
+		return strings.TrimSpace(u)
 	}
 
 	pairs := make([]pairView, 0, len(payload.Pairs))
@@ -291,7 +255,7 @@ func RenderHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequest
 		return err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL, true)
+	data, err := buildTemplateData(payload, styles, logoURL)
 	if err != nil {
 		return err
 	}
@@ -311,7 +275,7 @@ func RenderPDFHTMLTo(ctx context.Context, w io.Writer, payload models.ReportRequ
 		return err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL, false)
+	data, err := buildTemplateData(payload, styles, logoURL)
 	if err != nil {
 		return err
 	}
@@ -329,7 +293,7 @@ func RenderPDFHTMLWithLogo(payload models.ReportRequest, logoURL string) (string
 		return "", err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL, false)
+	data, err := buildTemplateData(payload, styles, logoURL)
 	if err != nil {
 		return "", err
 	}
@@ -350,7 +314,7 @@ func RenderHTMLWithLogo(payload models.ReportRequest, logoURL string) (string, e
 		return "", err
 	}
 
-	data, err := buildTemplateData(payload, styles, logoURL, true)
+	data, err := buildTemplateData(payload, styles, logoURL)
 	if err != nil {
 		return "", err
 	}

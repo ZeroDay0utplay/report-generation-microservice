@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,10 @@ type Config struct {
 	EmailWorkerCount   int
 	EmailQueueSize     int
 	EmailWebhookURL    string
+	BrevoAPIKey        string
+	BrevoSenderEmail   string
+	BrevoSenderName    string
+	BrevoEmailSubject  string
 }
 
 func Load() (Config, error) {
@@ -60,6 +65,10 @@ func Load() (Config, error) {
 		EmailWorkerCount:   getEnvInt("EMAIL_WORKER_COUNT", 2),
 		EmailQueueSize:     getEnvInt("EMAIL_QUEUE_SIZE", 128),
 		EmailWebhookURL:    strings.TrimSpace(getEnv("EMAIL_WEBHOOK_URL", "")),
+		BrevoAPIKey:        strings.TrimSpace(getEnv("BREVO_API_KEY", "")),
+		BrevoSenderEmail:   strings.TrimSpace(getEnv("BREVO_SENDER_EMAIL", "")),
+		BrevoSenderName:    strings.TrimSpace(getEnv("BREVO_SENDER_NAME", "IDEO Groupe")),
+		BrevoEmailSubject:  strings.TrimSpace(getEnv("BREVO_EMAIL_SUBJECT", "Votre rapport PDF est pret")),
 	}
 
 	if cfg.MaxPairs <= 0 {
@@ -82,6 +91,14 @@ func Load() (Config, error) {
 	}
 	if cfg.EmailQueueSize <= 0 {
 		return Config{}, fmt.Errorf("EMAIL_QUEUE_SIZE must be > 0")
+	}
+	if cfg.BrevoAPIKey != "" {
+		if cfg.BrevoSenderEmail == "" {
+			return Config{}, fmt.Errorf("BREVO_SENDER_EMAIL is required when BREVO_API_KEY is set")
+		}
+		if _, err := mail.ParseAddress(cfg.BrevoSenderEmail); err != nil {
+			return Config{}, fmt.Errorf("BREVO_SENDER_EMAIL is invalid: %w", err)
+		}
 	}
 
 	missing := make([]string, 0, 6)
